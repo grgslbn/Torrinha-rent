@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { sendGeneratedEmail } from "@/lib/email";
 import { NextRequest, NextResponse } from "next/server";
 
 // Simple in-memory rate limiter: 3 submissions per IP per hour
@@ -61,6 +62,12 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+
+  // Send waitlist confirmation email
+  const lang = body.language === "en" ? "en" : "pt";
+  await sendGeneratedEmail(body.email, "waitlist-confirmation", lang, {
+    waitlist_name: body.name,
+  }).catch((err) => console.error("Waitlist confirmation email error:", err));
 
   return NextResponse.json({ ok: true });
 }
