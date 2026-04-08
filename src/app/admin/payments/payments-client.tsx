@@ -56,6 +56,22 @@ function firstSpotNum(spots: { number: number }[] | null | undefined): number {
   return Math.min(...spots.map((s) => s.number));
 }
 
+type UnmatchedTxn = {
+  id: string;
+  amount_eur: number;
+  counterparty: string | null;
+  description: string | null;
+  transaction_date: string | null;
+  reviewed: boolean;
+};
+
+type AiMatch = {
+  transaction_id: string;
+  payment_id: string;
+  confidence: string;
+  reason: string;
+};
+
 export default function PaymentsClient() {
   const [month, setMonth] = useState(currentMonthStr());
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -72,6 +88,13 @@ export default function PaymentsClient() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyFilter, setHistoryFilter] = useState<string>("all");
 
+  // Unmatched transactions
+  const [unmatchedTxns, setUnmatchedTxns] = useState<UnmatchedTxn[]>([]);
+  const [unmatchedLoading, setUnmatchedLoading] = useState(false);
+  const [aiMatches, setAiMatches] = useState<AiMatch[]>([]);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [confirming, setConfirming] = useState<string | null>(null);
+
   const fetchPayments = useCallback(async () => {
     setLoading(true);
     const res = await fetch(`/api/payments?month=${month}`);
@@ -79,9 +102,17 @@ export default function PaymentsClient() {
     setLoading(false);
   }, [month]);
 
+  const fetchUnmatched = useCallback(async () => {
+    setUnmatchedLoading(true);
+    const res = await fetch("/api/unmatched-transactions");
+    if (res.ok) setUnmatchedTxns(await res.json());
+    setUnmatchedLoading(false);
+  }, []);
+
   useEffect(() => {
     fetchPayments();
-  }, [fetchPayments]);
+    fetchUnmatched();
+  }, [fetchPayments, fetchUnmatched]);
 
   // --- Generate pending rows for the month ---
   async function generateMonth() {
@@ -376,17 +407,206 @@ export default function PaymentsClient() {
             </table>
           </div>
 
-          {/* Needs Review placeholder */}
+          {/* Needs Review — Unmatched bank transactions */}
           <div className="mt-8">
-            <h2 className="text-lg font-semibold text-gray-900 mb-3">
-              Needs Review
-            </h2>
-            <div className="bg-white rounded-lg shadow p-6 text-center">
-              <p className="text-sm text-gray-400">
-                Unmatched bank transactions will appear here after GoCardless
-                integration (Step 6).
-              </p>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-semibold text-gray-900">
+                Needs Review
+                {unmatchedTxns.length > 0 && (
+                  <span className="ml-2 text-sm font-normal text-amber-600">
+                    {unmatchedTxns.length} unmatched
+                  </span>
+                )}
+              </h2>
+              {unmatchedTxns.length > 0 && (
+                <button
+                  onClick={async () => {
+                    setAiLoading(true);
+                    setAiMatches([]);
+                    const res = await fetch("/api/match-payments", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        transaction_ids: unmatchedTxns.map((t) => t.id),
+                      }),
+                    });
+                    if (res.ok) {
+                      const data = await res.json();
+                      setAiMatches(data.matches ?? []);
+                    } else {
+                      const data = await res.json().catch(() => ({}));
+                      setError(data.error || "AI matching failed");
+                    }
+                    setAiLoading(false);
+                  }}
+                  disabled={aiLoading}
+                  className="px-3 py-1.5 text-xs bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50"
+                >
+                  {aiLoading ? "Matching..." : "Match with AI"}
+                </button>
+              )}
             </div>
+
+            {unmatchedLoading ? (
+              <div className="bg-white rounded-lg shadow p-6 text-center">
+                <p className="text-sm text-gray-400">Loading...</p>
+              </div>
+            ) : unmatchedTxns.length === 0 ? (
+              <div className="bg-white rounded-lg shadow p-6 text-center">
+                <p className="text-sm text-gray-400">
+                  No unmatched bank transactions.
+                </p>
+              </div>
+            ) : (
+              <div className="bg-white rounded-lg shadow overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Date
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Amount
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Counterparty
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Description
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        AI Match
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase w-32"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {unmatchedTxns.map((txn) => {
+                      const aiMatch = aiMatches.find(
+                        (m) => m.transaction_id === txn.id
+                      );
+                      const matchedPayment = aiMatch
+                        ? payments.find((p) => p.id === aiMatch.payment_id) ??
+                          null
+                        : null;
+
+                      return (
+                        <tr key={txn.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 text-sm text-gray-900">
+                            {txn.transaction_date ?? "—"}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-900 font-medium">
+                            &euro;{txn.amount_eur}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-700">
+                            {txn.counterparty ?? "—"}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-500 max-w-[200px] truncate">
+                            {txn.description ?? "—"}
+                          </td>
+                          <td className="px-4 py-3 text-sm">
+                            {aiMatch ? (
+                              <div>
+                                <span
+                                  className={`px-1.5 py-0.5 rounded text-xs font-medium ${
+                                    aiMatch.confidence === "high"
+                                      ? "bg-green-50 text-green-700"
+                                      : aiMatch.confidence === "medium"
+                                        ? "bg-amber-50 text-amber-700"
+                                        : "bg-gray-100 text-gray-600"
+                                  }`}
+                                >
+                                  {aiMatch.confidence}
+                                </span>
+                                <span className="ml-1 text-xs text-gray-500">
+                                  {matchedPayment?.torrinha_tenants?.name ?? "—"}
+                                </span>
+                                <p className="text-xs text-gray-400 mt-0.5 truncate max-w-[180px]">
+                                  {aiMatch.reason}
+                                </p>
+                              </div>
+                            ) : aiLoading ? (
+                              <span className="text-xs text-gray-400">...</span>
+                            ) : (
+                              <span className="text-xs text-gray-400">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-sm flex gap-1">
+                            {aiMatch && (
+                              <button
+                                onClick={async () => {
+                                  setConfirming(txn.id);
+                                  const res = await fetch(
+                                    "/api/match-payments/confirm",
+                                    {
+                                      method: "POST",
+                                      headers: {
+                                        "Content-Type": "application/json",
+                                      },
+                                      body: JSON.stringify({
+                                        matches: [
+                                          {
+                                            transaction_id: txn.id,
+                                            payment_id: aiMatch.payment_id,
+                                          },
+                                        ],
+                                      }),
+                                    }
+                                  );
+                                  if (res.ok) {
+                                    await fetchPayments();
+                                    await fetchUnmatched();
+                                    setAiMatches((prev) =>
+                                      prev.filter(
+                                        (m) => m.transaction_id !== txn.id
+                                      )
+                                    );
+                                  } else {
+                                    const data = await res
+                                      .json()
+                                      .catch(() => ({}));
+                                    setError(
+                                      data.error || "Failed to confirm match"
+                                    );
+                                  }
+                                  setConfirming(null);
+                                }}
+                                disabled={confirming === txn.id}
+                                className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+                              >
+                                {confirming === txn.id ? "..." : "Confirm"}
+                              </button>
+                            )}
+                            <button
+                              onClick={async () => {
+                                const res = await fetch(
+                                  "/api/match-payments/dismiss",
+                                  {
+                                    method: "POST",
+                                    headers: {
+                                      "Content-Type": "application/json",
+                                    },
+                                    body: JSON.stringify({
+                                      transaction_ids: [txn.id],
+                                    }),
+                                  }
+                                );
+                                if (res.ok) {
+                                  await fetchUnmatched();
+                                }
+                              }}
+                              className="px-2 py-1 text-xs text-gray-500 hover:text-red-600 hover:bg-red-50 rounded"
+                            >
+                              Dismiss
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </>
       )}

@@ -1,20 +1,37 @@
-import { createClient } from "@/lib/supabase/server";
+import { fetchAccountInfo } from "@/lib/ponto";
 
 export default async function ConnectBankPage() {
-  const supabase = await createClient();
+  let accountInfo: {
+    synchronizedAt?: string;
+    currentBalance?: number;
+    currency?: string;
+    holderName?: string;
+    reference?: string;
+  } | null = null;
+  let pontoError: string | null = null;
 
-  const { data: tokens } = await supabase
-    .from("torrinha_gc_tokens")
-    .select("*")
-    .order("updated_at", { ascending: false })
-    .limit(1);
+  // Try to fetch Ponto account info
+  if (process.env.PONTO_CLIENT_ID && process.env.PONTO_ACCOUNT_ID) {
+    try {
+      accountInfo = await fetchAccountInfo();
+    } catch (err) {
+      pontoError = err instanceof Error ? err.message : "Failed to connect";
+    }
+  }
 
-  const token = tokens?.[0] ?? null;
-  const isConnected = !!token?.account_id;
-  const expiresAt = token?.expires_at ? new Date(token.expires_at) : null;
-  const daysUntilExpiry = expiresAt
-    ? Math.ceil((expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+  const isConnected = !!accountInfo;
+  const lastSync = accountInfo?.synchronizedAt
+    ? new Date(accountInfo.synchronizedAt)
     : null;
+  const hoursSinceSync = lastSync
+    ? (Date.now() - lastSync.getTime()) / (1000 * 60 * 60)
+    : null;
+  const syncStatus =
+    hoursSinceSync !== null
+      ? hoursSinceSync < 24
+        ? "recent"
+        : "stale"
+      : "unknown";
 
   return (
     <div>
@@ -22,39 +39,76 @@ export default async function ConnectBankPage() {
 
       <div className="bg-white rounded-lg shadow p-6 max-w-lg">
         <div className="mb-6">
+          <p className="text-sm text-gray-500 mb-1">Provider</p>
+          <p className="text-sm font-medium text-gray-900">Ponto by Isabel Group</p>
+        </div>
+
+        <div className="mb-6">
           <p className="text-sm text-gray-500 mb-1">Status</p>
           <div className="flex items-center gap-2">
             <span
               className={`w-2 h-2 rounded-full ${
-                isConnected ? "bg-green-500" : "bg-gray-300"
+                isConnected
+                  ? syncStatus === "recent"
+                    ? "bg-green-500"
+                    : "bg-amber-400"
+                  : "bg-gray-300"
               }`}
             />
             <span className="text-sm font-medium text-gray-900">
-              {isConnected ? "Connected" : "Not connected"}
+              {isConnected
+                ? syncStatus === "recent"
+                  ? "Connected"
+                  : "Connected (sync stale)"
+                : "Not connected"}
             </span>
           </div>
         </div>
 
-        {isConnected && expiresAt && (
+        {isConnected && lastSync && (
           <div className="mb-6">
-            <p className="text-sm text-gray-500 mb-1">Consent Expires</p>
-            <p className="text-sm text-gray-900">{expiresAt.toLocaleDateString()}</p>
-            {daysUntilExpiry !== null && daysUntilExpiry < 14 && (
+            <p className="text-sm text-gray-500 mb-1">Last Sync</p>
+            <p className="text-sm text-gray-900">
+              {lastSync.toLocaleString("en-GB", {
+                dateStyle: "medium",
+                timeStyle: "short",
+              })}
+            </p>
+            {syncStatus === "stale" && (
               <p className="text-sm text-amber-600 mt-1">
-                Expires in {daysUntilExpiry} days — reconnect soon.
+                Last sync was more than 24 hours ago. Ponto normally syncs 4x daily.
               </p>
             )}
           </div>
         )}
 
-        <p className="text-sm text-gray-500 mb-4">
-          Connect your Cr&eacute;dito Agr&iacute;cola account via GoCardless to
-          automatically sync bank transactions.
-        </p>
+        {accountInfo?.holderName && (
+          <div className="mb-6">
+            <p className="text-sm text-gray-500 mb-1">Account</p>
+            <p className="text-sm text-gray-900">{accountInfo.holderName}</p>
+            {accountInfo.reference && (
+              <p className="text-xs text-gray-400">{accountInfo.reference}</p>
+            )}
+          </div>
+        )}
 
-        <button className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700">
-          {isConnected ? "Reconnect Bank" : "Connect Bank"}
-        </button>
+        {pontoError && (
+          <div className="mb-4 p-3 bg-red-50 text-red-700 rounded text-sm">
+            {pontoError}
+          </div>
+        )}
+
+        {!process.env.PONTO_CLIENT_ID && (
+          <p className="text-sm text-gray-400 mb-4">
+            Set PONTO_CLIENT_ID, PONTO_CLIENT_SECRET, and PONTO_ACCOUNT_ID
+            environment variables to connect.
+          </p>
+        )}
+
+        <p className="text-sm text-gray-500">
+          Ponto automatically syncs your bank account 4 times daily. Incoming
+          payments are matched against pending rents via webhook.
+        </p>
       </div>
     </div>
   );

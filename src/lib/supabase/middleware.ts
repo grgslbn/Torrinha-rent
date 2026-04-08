@@ -33,7 +33,8 @@ export async function updateSession(request: NextRequest) {
   const isPublicRoute =
     request.nextUrl.pathname === "/" ||
     request.nextUrl.pathname === "/login" ||
-    request.nextUrl.pathname.startsWith("/api/waitlist");
+    request.nextUrl.pathname.startsWith("/api/waitlist") ||
+    request.nextUrl.pathname.startsWith("/api/webhooks/");
 
   if (!user && !isPublicRoute) {
     const url = request.nextUrl.clone();
