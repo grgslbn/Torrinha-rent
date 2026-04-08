@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from("torrinha_payments")
-    .select("*, torrinha_tenants(id, name, rent_eur, active, torrinha_spots!torrinha_spots_tenant_id_fkey(number))");
+    .select("*, torrinha_tenants(id, name, rent_eur, active, torrinha_spots!torrinha_spots_tenant_id_fkey(number, label))");
 
   if (tenantId) {
     query = query.eq("tenant_id", tenantId);

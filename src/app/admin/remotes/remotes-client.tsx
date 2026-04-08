@@ -6,7 +6,7 @@ type RemoteTenant = {
   id: string;
   name: string;
   active: boolean;
-  torrinha_spots: { number: number }[];
+  torrinha_spots: { number: number; label: string | null }[];
 };
 
 type Remote = {
@@ -24,11 +24,12 @@ type ActiveTenant = { id: string; name: string; spot_numbers: string };
 
 type EditingCell = { remoteId: string; field: string } | null;
 
-function spotNums(spots: { number: number }[] | null | undefined): string {
+function spotLabels(spots: { number: number; label?: string | null }[] | null | undefined): string {
   if (!spots || spots.length === 0) return "—";
   return spots
-    .map((s) => s.number)
-    .sort((a, b) => a - b)
+    .slice()
+    .sort((a, b) => a.number - b.number)
+    .map((s) => s.label || String(s.number))
     .join(", ");
 }
 
@@ -57,11 +58,11 @@ export default function RemotesClient() {
             (t: {
               id: string;
               name: string;
-              torrinha_spots: { number: number }[];
+              torrinha_spots: { number: number; label: string | null }[];
             }) => ({
               id: t.id,
               name: t.name,
-              spot_numbers: spotNums(t.torrinha_spots),
+              spot_numbers: spotLabels(t.torrinha_spots),
             })
           )
       );
@@ -291,7 +292,7 @@ export default function RemotesClient() {
                     className={`hover:bg-gray-50 ${tenantInactive ? "bg-amber-50" : ""}`}
                   >
                     <td className="px-4 py-3 text-sm text-gray-900 font-medium">
-                      {spotNums(tenant?.torrinha_spots)}
+                      {spotLabels(tenant?.torrinha_spots)}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-900">
                       {tenant?.name ?? "—"}
@@ -391,7 +392,7 @@ export default function RemotesClient() {
                   return (
                     <tr key={r.id}>
                       <td className="px-4 py-2 text-sm text-gray-400">
-                        {spotNums(tenant?.torrinha_spots)}
+                        {spotLabels(tenant?.torrinha_spots)}
                       </td>
                       <td className="px-4 py-2 text-sm text-gray-400">
                         {tenant?.name ?? "—"}

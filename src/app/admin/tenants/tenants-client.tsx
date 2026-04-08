@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-type Spot = { id: string; number: number };
+type Spot = { id: string; number: number; label: string | null };
 type Remote = {
   id: string;
   count: number;
@@ -20,7 +20,7 @@ type Tenant = {
   start_date: string;
   notes: string | null;
   active: boolean;
-  torrinha_spots: { id: string; number: number }[];
+  torrinha_spots: { id: string; number: number; label: string | null }[];
   torrinha_remotes: Remote[];
 };
 
@@ -29,11 +29,16 @@ type EditingCell = {
   field: string;
 } | null;
 
-function spotNums(t: Tenant): string {
+function spotLabel(s: { number: number; label?: string | null }): string {
+  return s.label || `Spot ${s.number}`;
+}
+
+function spotLabels(t: Tenant): string {
   if (!t.torrinha_spots || t.torrinha_spots.length === 0) return "—";
   return t.torrinha_spots
-    .map((s) => s.number)
-    .sort((a, b) => a - b)
+    .slice()
+    .sort((a, b) => a.number - b.number)
+    .map((s) => s.label || String(s.number))
     .join(", ");
 }
 
@@ -278,7 +283,7 @@ export default function TenantsClient() {
               activeTenants.map((t) => (
                 <tr key={t.id} className="hover:bg-gray-50">
                   <td className="px-3 py-3 text-sm text-gray-900 font-medium">
-                    {spotNums(t)}
+                    {spotLabels(t)}
                   </td>
                   <td className="px-3 py-3 text-sm text-gray-900">
                     {renderEditableCell(t, "name", t.name)}
@@ -353,7 +358,7 @@ export default function TenantsClient() {
                 {inactiveTenants.map((t) => (
                   <tr key={t.id}>
                     <td className="px-3 py-2 text-sm text-gray-400">
-                      {spotNums(t)}
+                      {spotLabels(t)}
                     </td>
                     <td className="px-3 py-2 text-sm text-gray-400">
                       {t.name}
@@ -476,7 +481,7 @@ function AddTenantForm({
                         : "bg-white text-gray-700 border-gray-300 hover:border-blue-400"
                     }`}
                   >
-                    Spot {s.number}
+                    {spotLabel(s)}
                   </button>
                 );
               })}
@@ -630,7 +635,7 @@ function DeactivateModal({
         <p className="text-sm text-gray-600 mb-4">
           Are you sure you want to deactivate{" "}
           <strong>{tenant.name}</strong> (Spot{tenant.torrinha_spots.length > 1 ? "s" : ""}{" "}
-          {spotNums(tenant)})?
+          {spotLabels(tenant)})?
           This will free the spot{tenant.torrinha_spots.length > 1 ? "s" : ""} for new tenants.
         </p>
 

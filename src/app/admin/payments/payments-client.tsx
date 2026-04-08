@@ -7,7 +7,7 @@ type PaymentTenant = {
   name: string;
   rent_eur: number;
   active: boolean;
-  torrinha_spots: { number: number }[];
+  torrinha_spots: { number: number; label: string | null }[];
 };
 
 type Payment = {
@@ -42,11 +42,12 @@ function currentMonthStr() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
-function spotNums(spots: { number: number }[] | null | undefined): string {
+function spotLabels(spots: { number: number; label?: string | null }[] | null | undefined): string {
   if (!spots || spots.length === 0) return "—";
   return spots
-    .map((s) => s.number)
-    .sort((a, b) => a - b)
+    .slice()
+    .sort((a, b) => a.number - b.number)
+    .map((s) => s.label || String(s.number))
     .join(", ");
 }
 
@@ -325,7 +326,7 @@ export default function PaymentsClient() {
                   return (
                     <tr key={p.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-sm text-gray-900 font-medium">
-                        {spotNums(t?.torrinha_spots)}
+                        {spotLabels(t?.torrinha_spots)}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-900">
                         {t ? (
@@ -444,7 +445,7 @@ function TenantHistoryModal({
             </h2>
             <p className="text-sm text-gray-500">
               Spot{tenant.torrinha_spots.length > 1 ? "s" : ""}{" "}
-              {spotNums(tenant.torrinha_spots)} &middot; &euro;
+              {spotLabels(tenant.torrinha_spots)} &middot; &euro;
               {tenant.rent_eur}/month
             </p>
           </div>

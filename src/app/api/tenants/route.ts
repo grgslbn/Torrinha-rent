@@ -11,7 +11,7 @@ export async function GET() {
   const { data: tenants, error } = await supabase
     .from("torrinha_tenants")
     .select(
-      "*, torrinha_spots!torrinha_spots_tenant_id_fkey(id, number), torrinha_remotes(id, count, deposit_paid, returned_date)"
+      "*, torrinha_spots!torrinha_spots_tenant_id_fkey(id, number, label), torrinha_remotes(id, count, deposit_paid, returned_date)"
     )
     .order("active", { ascending: false })
     .order("created_at", { ascending: false });
@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
   // Re-fetch with spots included
   const { data: full } = await supabase
     .from("torrinha_tenants")
-    .select("*, torrinha_spots!torrinha_spots_tenant_id_fkey(id, number)")
+    .select("*, torrinha_spots!torrinha_spots_tenant_id_fkey(id, number, label)")
     .eq("id", tenant.id)
     .single();
 
@@ -130,7 +130,7 @@ export async function PATCH(request: NextRequest) {
 
   const { data, error: fetchError } = await supabase
     .from("torrinha_tenants")
-    .select("*, torrinha_spots!torrinha_spots_tenant_id_fkey(id, number)")
+    .select("*, torrinha_spots!torrinha_spots_tenant_id_fkey(id, number, label)")
     .eq("id", id)
     .single();
 

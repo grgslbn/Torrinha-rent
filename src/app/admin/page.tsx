@@ -2,9 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 
 type SpotRow = {
   number: number;
-  owner_use: boolean;
+  label: string | null;
   tenant_id: string | null;
-  // Supabase returns the FK-owning side as an object (spot belongs to one tenant)
   torrinha_tenants: { id: string; name: string } | null;
 };
 
@@ -39,7 +38,7 @@ export default async function AdminDashboard() {
       .eq("status", "waiting"),
     supabase
       .from("torrinha_spots")
-      .select("number, owner_use, tenant_id, torrinha_tenants(id, name)")
+      .select("number, label, tenant_id, torrinha_tenants(id, name)")
       .order("number"),
     supabase
       .from("torrinha_payments")
@@ -57,8 +56,9 @@ export default async function AdminDashboard() {
     tenantPaymentStatus.set(p.tenant_id, p.status);
   }
 
-  // Count occupied vs available (non-owner spots)
-  const tenantSpots = allSpots.filter((s) => !s.owner_use);
+  // Owner spots have label "Owner"
+  const isOwner = (s: SpotRow) => s.label === "Owner";
+  const tenantSpots = allSpots.filter((s) => !isOwner(s));
   const occupiedSpots = tenantSpots.filter((s) => s.tenant_id).length;
   const availableSpots = tenantSpots.filter((s) => !s.tenant_id).length;
 
@@ -85,9 +85,12 @@ export default async function AdminDashboard() {
 
       <div className="bg-white rounded-lg shadow p-5">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Spot Map</h2>
-        <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
+        <div className="grid grid-cols-4 sm:grid-cols-9 gap-2">
           {allSpots.map((spot) => {
-            if (spot.owner_use) {
+            const displayName = spot.label || String(spot.number);
+            const isLabelledSpot = !!spot.label && !isOwner(spot);
+
+            if (isOwner(spot)) {
               return (
                 <div
                   key={spot.number}
@@ -110,13 +113,16 @@ export default async function AdminDashboard() {
                 "bg-blue-50 text-blue-700 border-blue-200"
               : "bg-green-50 text-green-700 border-green-200";
 
+            // Dashed border for labelled spots (like "Other")
+            const borderStyle = isLabelledSpot ? "border-dashed border-2" : "border";
+
             return (
               <div
                 key={spot.number}
-                className={`p-3 rounded text-center text-sm font-medium border ${colorClass} relative group`}
+                className={`p-3 rounded text-center text-sm font-medium ${borderStyle} ${colorClass} relative group`}
                 title={tenant ? tenant.name : "Available"}
               >
-                {spot.number}
+                {displayName}
                 {tenant && (
                   <span className="block text-xs truncate opacity-70">
                     {tenant.name}
@@ -135,7 +141,7 @@ export default async function AdminDashboard() {
             );
           })}
         </div>
-        <div className="flex gap-4 mt-4 text-xs text-gray-500">
+        <div className="flex flex-wrap gap-4 mt-4 text-xs text-gray-500">
           <span className="flex items-center gap-1">
             <span className="w-3 h-3 rounded bg-green-100 border border-green-300 inline-block" /> Available
           </span>
