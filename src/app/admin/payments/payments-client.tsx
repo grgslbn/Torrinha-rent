@@ -7,7 +7,7 @@ type PaymentTenant = {
   name: string;
   rent_eur: number;
   active: boolean;
-  torrinha_spots: { number: number } | null;
+  torrinha_spots: { number: number }[];
 };
 
 type Payment = {
@@ -40,6 +40,19 @@ const STATUS_ORDER: Record<string, number> = {
 function currentMonthStr() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function spotNums(spots: { number: number }[] | null | undefined): string {
+  if (!spots || spots.length === 0) return "—";
+  return spots
+    .map((s) => s.number)
+    .sort((a, b) => a - b)
+    .join(", ");
+}
+
+function firstSpotNum(spots: { number: number }[] | null | undefined): number {
+  if (!spots || spots.length === 0) return 99;
+  return Math.min(...spots.map((s) => s.number));
 }
 
 export default function PaymentsClient() {
@@ -126,8 +139,8 @@ export default function PaymentsClient() {
     switch (sortKey) {
       case "spot":
         return (
-          ((at?.torrinha_spots?.number ?? 99) -
-            (bt?.torrinha_spots?.number ?? 99)) *
+          (firstSpotNum(at?.torrinha_spots) -
+            firstSpotNum(bt?.torrinha_spots)) *
           dir
         );
       case "name":
@@ -277,7 +290,7 @@ export default function PaymentsClient() {
                     className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:text-gray-700"
                     onClick={() => toggleSort("spot")}
                   >
-                    Spot{sortIndicator("spot")}
+                    Spots{sortIndicator("spot")}
                   </th>
                   <th
                     className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:text-gray-700"
@@ -312,7 +325,7 @@ export default function PaymentsClient() {
                   return (
                     <tr key={p.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-sm text-gray-900 font-medium">
-                        {t?.torrinha_spots?.number ?? "—"}
+                        {spotNums(t?.torrinha_spots)}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-900">
                         {t ? (
@@ -430,7 +443,8 @@ function TenantHistoryModal({
               {tenant.name}
             </h2>
             <p className="text-sm text-gray-500">
-              Spot {tenant.torrinha_spots?.number ?? "—"} &middot; &euro;
+              Spot{tenant.torrinha_spots.length > 1 ? "s" : ""}{" "}
+              {spotNums(tenant.torrinha_spots)} &middot; &euro;
               {tenant.rent_eur}/month
             </p>
           </div>

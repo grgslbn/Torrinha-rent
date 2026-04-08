@@ -11,7 +11,6 @@ type Remote = {
 };
 type Tenant = {
   id: string;
-  spot_id: string | null;
   name: string;
   email: string;
   phone: string | null;
@@ -21,7 +20,7 @@ type Tenant = {
   start_date: string;
   notes: string | null;
   active: boolean;
-  torrinha_spots: { number: number } | null;
+  torrinha_spots: { id: string; number: number }[];
   torrinha_remotes: Remote[];
 };
 
@@ -29,6 +28,14 @@ type EditingCell = {
   tenantId: string;
   field: string;
 } | null;
+
+function spotNums(t: Tenant): string {
+  if (!t.torrinha_spots || t.torrinha_spots.length === 0) return "—";
+  return t.torrinha_spots
+    .map((s) => s.number)
+    .sort((a, b) => a - b)
+    .join(", ");
+}
 
 export default function TenantsClient() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
@@ -234,7 +241,7 @@ export default function TenantsClient() {
           <thead className="bg-gray-50">
             <tr>
               <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                Spot
+                Spots
               </th>
               <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                 Name
@@ -271,7 +278,7 @@ export default function TenantsClient() {
               activeTenants.map((t) => (
                 <tr key={t.id} className="hover:bg-gray-50">
                   <td className="px-3 py-3 text-sm text-gray-900 font-medium">
-                    {t.torrinha_spots?.number ?? "—"}
+                    {spotNums(t)}
                   </td>
                   <td className="px-3 py-3 text-sm text-gray-900">
                     {renderEditableCell(t, "name", t.name)}
@@ -346,7 +353,7 @@ export default function TenantsClient() {
                 {inactiveTenants.map((t) => (
                   <tr key={t.id}>
                     <td className="px-3 py-2 text-sm text-gray-400">
-                      {t.torrinha_spots?.number ?? "—"}
+                      {spotNums(t)}
                     </td>
                     <td className="px-3 py-2 text-sm text-gray-400">
                       {t.name}
@@ -393,7 +400,7 @@ function AddTenantForm({
   onError: (msg: string) => void;
 }) {
   const [form, setForm] = useState({
-    spot_id: "",
+    spot_ids: [] as string[],
     name: "",
     email: "",
     phone: "",
@@ -409,8 +416,21 @@ function AddTenantForm({
     setForm((f) => ({ ...f, [field]: value }));
   }
 
+  function toggleSpot(spotId: string) {
+    setForm((f) => ({
+      ...f,
+      spot_ids: f.spot_ids.includes(spotId)
+        ? f.spot_ids.filter((id) => id !== spotId)
+        : [...f.spot_ids, spotId],
+    }));
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (form.spot_ids.length === 0) {
+      onError("Select at least one spot");
+      return;
+    }
     setSaving(true);
     const res = await fetch("/api/tenants", {
       method: "POST",
@@ -435,25 +455,37 @@ function AddTenantForm({
         Add New Tenant
       </h2>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div>
+        <div className="col-span-2 sm:col-span-4">
           <label className="block text-xs font-medium text-gray-600 mb-1">
-            Spot *
+            Spots *
           </label>
-          <select
-            value={form.spot_id}
-            onChange={(e) => set("spot_id", e.target.value)}
-            required
-            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm text-gray-900"
-          >
-            <option value="">Select spot...</option>
-            {vacantSpots.map((s) => (
-              <option key={s.id} value={s.id}>
-                Spot {s.number}
-              </option>
-            ))}
-          </select>
-          {vacantSpots.length === 0 && (
-            <p className="text-xs text-amber-600 mt-1">No vacant spots</p>
+          {vacantSpots.length === 0 ? (
+            <p className="text-xs text-amber-600">No vacant spots</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {vacantSpots.map((s) => {
+                const selected = form.spot_ids.includes(s.id);
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => toggleSpot(s.id)}
+                    className={`px-3 py-1.5 rounded text-sm font-medium border transition-colors ${
+                      selected
+                        ? "bg-blue-600 text-white border-blue-600"
+                        : "bg-white text-gray-700 border-gray-300 hover:border-blue-400"
+                    }`}
+                  >
+                    Spot {s.number}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {form.spot_ids.length > 0 && (
+            <p className="text-xs text-gray-500 mt-1">
+              {form.spot_ids.length} spot{form.spot_ids.length > 1 ? "s" : ""} selected
+            </p>
           )}
         </div>
         <div>
@@ -597,9 +629,9 @@ function DeactivateModal({
         </h2>
         <p className="text-sm text-gray-600 mb-4">
           Are you sure you want to deactivate{" "}
-          <strong>{tenant.name}</strong> (Spot{" "}
-          {tenant.torrinha_spots?.number})?
-          This will free the spot for a new tenant.
+          <strong>{tenant.name}</strong> (Spot{tenant.torrinha_spots.length > 1 ? "s" : ""}{" "}
+          {spotNums(tenant)})?
+          This will free the spot{tenant.torrinha_spots.length > 1 ? "s" : ""} for new tenants.
         </p>
 
         <div className="space-y-3 mb-6">

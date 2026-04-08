@@ -8,26 +8,13 @@ export async function GET() {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  // Get all non-owner spots
-  const { data: spots } = await supabase
+  // Get all non-owner spots that have no tenant assigned
+  const { data: vacantSpots } = await supabase
     .from("torrinha_spots")
     .select("id, number, owner_use")
     .eq("owner_use", false)
+    .is("tenant_id", null)
     .order("number");
 
-  // Get spots currently occupied by active tenants
-  const { data: occupiedTenants } = await supabase
-    .from("torrinha_tenants")
-    .select("spot_id")
-    .eq("active", true)
-    .not("spot_id", "is", null);
-
-  const occupiedSpotIds = new Set(
-    occupiedTenants?.map((t) => t.spot_id) ?? []
-  );
-
-  const vacantSpots =
-    spots?.filter((s) => !occupiedSpotIds.has(s.id)) ?? [];
-
-  return NextResponse.json(vacantSpots);
+  return NextResponse.json(vacantSpots ?? []);
 }

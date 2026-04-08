@@ -22,10 +22,16 @@ export async function POST(request: NextRequest) {
       .is("returned_date", null);
   }
 
-  // Deactivate tenant and free the spot
+  // Free all spots assigned to this tenant
+  await supabase
+    .from("torrinha_spots")
+    .update({ tenant_id: null })
+    .eq("tenant_id", tenant_id);
+
+  // Deactivate tenant
   const { error: tenantError } = await supabase
     .from("torrinha_tenants")
-    .update({ active: false, spot_id: null })
+    .update({ active: false })
     .eq("id", tenant_id);
 
   if (tenantError)

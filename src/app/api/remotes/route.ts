@@ -10,7 +10,7 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from("torrinha_remotes")
-    .select("*, torrinha_tenants(id, name, active, torrinha_spots(number))")
+    .select("*, torrinha_tenants(id, name, active, torrinha_spots!torrinha_spots_tenant_id_fkey(number))")
     .order("returned_date", { ascending: true, nullsFirst: true })
     .order("issued_date", { ascending: false });
 
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
       deposit_eur: deposit_eur ? Number(deposit_eur) : null,
       issued_date: issued_date || new Date().toISOString().split("T")[0],
     })
-    .select("*, torrinha_tenants(id, name, active, torrinha_spots(number))")
+    .select("*, torrinha_tenants(id, name, active, torrinha_spots!torrinha_spots_tenant_id_fkey(number))")
     .single();
 
   if (error)
@@ -76,7 +76,7 @@ export async function PATCH(request: NextRequest) {
     .from("torrinha_remotes")
     .update(updates)
     .eq("id", id)
-    .select("*, torrinha_tenants(id, name, active, torrinha_spots(number))")
+    .select("*, torrinha_tenants(id, name, active, torrinha_spots!torrinha_spots_tenant_id_fkey(number))")
     .single();
 
   if (error)
