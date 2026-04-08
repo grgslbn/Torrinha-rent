@@ -28,14 +28,37 @@ function formatMonth(month: string, lang: string): string {
   return `${months[parseInt(m, 10) - 1]} ${y}`;
 }
 
+function isDryRun(): boolean {
+  return process.env.EMAIL_DRY_RUN === "true";
+}
+
 async function sendEmail(
   to: string,
   subject: string,
   text: string
 ): Promise<{ success: boolean; error?: string }> {
   const from = process.env.EMAIL_FROM || "noreply@torrinha.com";
+
+  let actualTo = to;
+  let actualSubject = subject;
+  let actualText = text;
+
+  if (isDryRun()) {
+    const ownerEmail = process.env.OWNER_EMAIL;
+    if (!ownerEmail) return { success: false, error: "EMAIL_DRY_RUN is true but OWNER_EMAIL not set" };
+    actualTo = ownerEmail;
+    actualSubject = `[DRY RUN] ${subject}`;
+    actualText = `[This email would have been sent to: ${to}]\n\n${text}`;
+    console.log(`[dry-run] Redirecting email from ${to} → ${ownerEmail}`);
+  }
+
   try {
-    const { error } = await getResend().emails.send({ from, to, subject, text });
+    const { error } = await getResend().emails.send({
+      from,
+      to: actualTo,
+      subject: actualSubject,
+      text: actualText,
+    });
     if (error) {
       console.error("Email send error:", error);
       return { success: false, error: error.message };
