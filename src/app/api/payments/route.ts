@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 
 // GET /api/payments?month=2026-04
+// GET /api/payments?from=2026-01&to=2026-04  (date range)
 // GET /api/payments?tenant_id=xxx (all months for one tenant)
 // GET /api/payments?tenant_id=xxx&status=pending
 export async function GET(request: NextRequest) {
@@ -13,6 +14,8 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url);
   const month = searchParams.get("month");
+  const from = searchParams.get("from");
+  const to = searchParams.get("to");
   const tenantId = searchParams.get("tenant_id");
   const status = searchParams.get("status");
 
@@ -22,6 +25,8 @@ export async function GET(request: NextRequest) {
 
   if (tenantId) {
     query = query.eq("tenant_id", tenantId);
+  } else if (from && to) {
+    query = query.gte("month", from).lte("month", to);
   } else if (month) {
     query = query.eq("month", month);
   }
