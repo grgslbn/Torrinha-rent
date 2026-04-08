@@ -8,9 +8,19 @@ export async function POST(request: NextRequest) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { tenant_id } = await request.json();
+  const { tenant_id, mark_remotes_returned } = await request.json();
   if (!tenant_id)
     return NextResponse.json({ error: "tenant_id is required" }, { status: 400 });
+
+  // Mark outstanding remotes as returned if requested
+  if (mark_remotes_returned) {
+    const today = new Date().toISOString().split("T")[0];
+    await supabase
+      .from("torrinha_remotes")
+      .update({ returned_date: today })
+      .eq("tenant_id", tenant_id)
+      .is("returned_date", null);
+  }
 
   // Deactivate tenant and free the spot
   const { error: tenantError } = await supabase

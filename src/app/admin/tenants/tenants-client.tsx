@@ -167,7 +167,10 @@ export default function TenantsClient() {
     const res = await fetch("/api/tenants/deactivate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tenant_id: deactivating.id }),
+      body: JSON.stringify({
+        tenant_id: deactivating.id,
+        mark_remotes_returned: true,
+      }),
     });
     if (res.ok) {
       await fetchData();
