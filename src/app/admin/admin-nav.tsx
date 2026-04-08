@@ -11,6 +11,7 @@ const navLinks = [
   { href: "/admin/remotes", label: "Remotes" },
   { href: "/admin/waitlist", label: "Waitlist" },
   { href: "/admin/connect-bank", label: "Bank" },
+  { href: "/admin/emails", label: "Emails" },
 ];
 
 export default function AdminNav() {
