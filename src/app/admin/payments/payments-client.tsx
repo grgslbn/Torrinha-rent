@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import CsvImportModal from "./csv-import-modal";
 
 type PaymentTenant = {
   id: string;
@@ -165,6 +166,11 @@ export default function PaymentsClient() {
   const [aiLoading, setAiLoading] = useState(false);
   const [confirming, setConfirming] = useState<string | null>(null);
 
+  // CSV import
+  const [showCsvImport, setShowCsvImport] = useState(false);
+  const [csvMatches, setCsvMatches] = useState<AiMatch[]>([]);
+  const [csvTransactions, setCsvTransactions] = useState<{ id: string; date: string; amount: number; description: string; sender: string; iban: string }[]>([]);
+
   // --- Fetch ---
   const fetchPayments = useCallback(async () => {
     setLoading(true);
@@ -322,6 +328,13 @@ export default function PaymentsClient() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Payments</h1>
         <div className="flex items-center gap-4">
+          {/* Import CSV button */}
+          <button
+            onClick={() => setShowCsvImport(true)}
+            className="px-3 py-1.5 text-xs bg-gray-700 text-white rounded-md hover:bg-gray-800"
+          >
+            Import CSV
+          </button>
           {/* View mode toggle */}
           <div className="flex rounded overflow-hidden border border-gray-300 text-xs">
             <button
@@ -628,6 +641,108 @@ export default function PaymentsClient() {
             />
           )}
         </>
+      )}
+
+      {/* CSV Import matches review */}
+      {csvMatches.length > 0 && (
+        <div className="mt-8">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-semibold text-gray-900">
+              CSV Import Matches
+              <span className="ml-2 text-sm font-normal text-purple-600">
+                {csvMatches.length} suggested
+              </span>
+            </h2>
+            <button
+              onClick={() => { setCsvMatches([]); setCsvTransactions([]); }}
+              className="text-xs text-gray-500 hover:text-gray-700"
+            >
+              Clear results
+            </button>
+          </div>
+          <div className="bg-white rounded-lg shadow overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sender</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Match</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Confidence</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase w-28"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {csvMatches.map((match) => {
+                  const txn = csvTransactions.find((t) => t.id === match.transaction_id);
+                  const payment = payments.find((p) => p.id === match.payment_id);
+                  return (
+                    <tr key={match.transaction_id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 text-sm text-gray-900">{txn?.date ?? "—"}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900 font-medium">&euro;{txn?.amount ?? "—"}</td>
+                      <td className="px-4 py-3 text-sm text-gray-700">{txn?.sender ?? "—"}</td>
+                      <td className="px-4 py-3 text-sm">
+                        <span className="text-gray-900">{payment?.torrinha_tenants?.name ?? "—"}</span>
+                        <p className="text-xs text-gray-400 truncate max-w-[200px]">{match.reason}</p>
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
+                          match.confidence === "high" ? "bg-green-50 text-green-700"
+                          : match.confidence === "medium" ? "bg-amber-50 text-amber-700"
+                          : "bg-gray-100 text-gray-600"
+                        }`}>{match.confidence}</span>
+                      </td>
+                      <td className="px-4 py-3 text-sm flex gap-1">
+                        <button
+                          onClick={async () => {
+                            setConfirming(match.transaction_id);
+                            const res = await fetch("/api/match-payments/confirm", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                matches: [{ transaction_id: match.transaction_id, payment_id: match.payment_id }],
+                              }),
+                            });
+                            if (res.ok) {
+                              await fetchPayments();
+                              setCsvMatches((prev) => prev.filter((m) => m.transaction_id !== match.transaction_id));
+                            } else {
+                              const data = await res.json().catch(() => ({}));
+                              setError(data.error || "Failed to confirm");
+                            }
+                            setConfirming(null);
+                          }}
+                          disabled={confirming === match.transaction_id}
+                          className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+                        >
+                          {confirming === match.transaction_id ? "..." : "Confirm"}
+                        </button>
+                        <button
+                          onClick={() => setCsvMatches((prev) => prev.filter((m) => m.transaction_id !== match.transaction_id))}
+                          className="px-2 py-1 text-xs text-gray-500 hover:text-red-600 hover:bg-red-50 rounded"
+                        >
+                          Reject
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* CSV Import Modal */}
+      {showCsvImport && (
+        <CsvImportModal
+          onClose={() => setShowCsvImport(false)}
+          onMatchesReady={(matches, transactions) => {
+            setCsvMatches(matches);
+            setCsvTransactions(transactions);
+            setShowCsvImport(false);
+          }}
+        />
       )}
 
       {/* Tenant history drill-down modal */}

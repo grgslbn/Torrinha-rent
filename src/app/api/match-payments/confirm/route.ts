@@ -23,24 +23,35 @@ export async function POST(request: NextRequest) {
 
   for (const match of matches) {
     const { transaction_id, payment_id } = match;
-    if (!transaction_id || !payment_id) continue;
+    if (!payment_id) continue;
 
-    // Get the transaction amount
-    const { data: txn } = await supabase
-      .from("torrinha_unmatched_transactions")
-      .select("amount_eur")
-      .eq("id", transaction_id)
-      .single();
+    const isCsvImport = !transaction_id || transaction_id.startsWith("csv-");
+    const matchedBy = isCsvImport ? "csv_import" : "claude_ai";
+
+    // Get transaction amount from DB (only for DB-sourced transactions)
+    let txnAmount: number | null = null;
+    if (!isCsvImport && transaction_id) {
+      const { data: txn } = await supabase
+        .from("torrinha_unmatched_transactions")
+        .select("amount_eur")
+        .eq("id", transaction_id)
+        .single();
+      txnAmount = txn?.amount_eur ?? null;
+    }
 
     // Update payment as paid
+    const updateData: Record<string, unknown> = {
+      status: "paid",
+      matched_by: matchedBy,
+      paid_date: today,
+    };
+    if (txnAmount !== null) {
+      updateData.amount_eur = txnAmount;
+    }
+
     const { error: payError } = await supabase
       .from("torrinha_payments")
-      .update({
-        status: "paid",
-        matched_by: "claude_ai",
-        paid_date: today,
-        amount_eur: txn?.amount_eur ?? null,
-      })
+      .update(updateData)
       .eq("id", payment_id);
 
     if (payError) {
@@ -48,11 +59,13 @@ export async function POST(request: NextRequest) {
       continue;
     }
 
-    // Mark transaction as reviewed
-    await supabase
-      .from("torrinha_unmatched_transactions")
-      .update({ reviewed: true })
-      .eq("id", transaction_id);
+    // Mark unmatched transaction as reviewed (only for DB-sourced)
+    if (!isCsvImport && transaction_id) {
+      await supabase
+        .from("torrinha_unmatched_transactions")
+        .update({ reviewed: true })
+        .eq("id", transaction_id);
+    }
 
     // Send thank-you email
     const { data: payment } = await supabase
