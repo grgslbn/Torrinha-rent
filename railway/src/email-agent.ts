@@ -214,7 +214,18 @@ When replying to a known tenant about payments:
 - Check their payment context and reply with their current status
 - Be specific: mention the month, amount, and whether it's paid/pending/overdue
 
-Return ONLY valid JSON — no prose, no markdown.`;
+Return ONLY valid JSON with EXACTLY these top-level keys — no nesting, no "reply" wrapper:
+{
+  "classification": "waitlist_enquiry",
+  "urgency": "normal",
+  "confidence": "high",
+  "reasoning": "Short explanation of your draft",
+  "draft_subject": "Re: Parking",
+  "draft_body": "The full email reply text here, signed off"
+}
+
+Do NOT nest the reply inside a "reply" object. All six keys must be at the top level.
+No prose, no markdown — ONLY the JSON object.`;
 
   const userPrompt = `Inbound email:
 From: ${fromName} <${fromEmail}>
@@ -244,7 +255,19 @@ ${JSON.stringify(senderContext, null, 2)}`;
     console.log("[claude] Raw text:", text.substring(0, 300));
 
     const jsonStr = text.replace(/```json?\n?/g, "").replace(/```/g, "").trim();
-    claudeResult = JSON.parse(jsonStr);
+    const parsed = JSON.parse(jsonStr);
+
+    // Handle both flat and nested structures
+    const reply = parsed.reply || {};
+    claudeResult = {
+      classification: parsed.classification || parsed.type || "other",
+      urgency: parsed.urgency || reply.urgency || "normal",
+      confidence: parsed.confidence || reply.confidence || "medium",
+      reasoning: parsed.reasoning || reply.reasoning || parsed.explanation || "",
+      draft_subject: parsed.draft_subject || reply.subject || `Re: ${subject}`,
+      draft_body: parsed.draft_body || reply.body || parsed.body || parsed.message || "",
+      suggested_action: parsed.suggested_action || reply.suggested_action,
+    };
     console.log("[claude] Parsed OK:", { classification: claudeResult.classification, confidence: claudeResult.confidence, draft_length: claudeResult.draft_body?.length ?? 0 });
   } catch (err: unknown) {
     const errMsg = err instanceof Error ? err.message : String(err);
