@@ -55,43 +55,16 @@ export async function processInboundEmail(payload: any) {
   const fromRaw: string = data.from || payload.from || "";
   const subject: string = data.subject || payload.subject || "(no subject)";
   const threadId: string = data.threadId || data.thread_id || data.in_reply_to || payload.in_reply_to || payload.message_id || "";
-  const emailId: string = data.email_id || data.id || payload.email_id || payload.id || "";
 
   // Parse "Name <email>" format
   const fromMatch = fromRaw.match(/^(.+?)\s*<(.+?)>$/);
   const fromName = fromMatch ? fromMatch[1].trim() : (payload.from_name || fromRaw.split("@")[0]);
   const fromEmail = (fromMatch ? fromMatch[2].trim() : fromRaw).toLowerCase().trim();
 
-  // Resend inbound webhooks do NOT include the email body.
-  // Fetch the full email content from the Resend API.
-  // Try multiple ID sources — Resend uses email_id in webhooks
-  const messageId = payload.data?.email_id || payload.data?.id || payload.email_id || emailId;
-  console.log("[email-agent] Fetching email ID:", messageId);
-  console.log("[email-agent] RESEND_API_KEY present:", !!process.env.RESEND_API_KEY);
-
-  let bodyText = "";
-  if (messageId) {
-    try {
-      const emailRes = await fetch(`https://api.resend.com/emails/${messageId}`, {
-        headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}` },
-      });
-      console.log("[email-agent] Resend API status:", emailRes.status);
-      const fullEmail = await emailRes.json() as Record<string, unknown>;
-      console.log("[email-agent] Resend API response:", JSON.stringify(fullEmail).substring(0, 500));
-      bodyText = (fullEmail.text as string) || (fullEmail.html as string) || "";
-      console.log("[email-agent] Body length after fetch:", bodyText.length);
-    } catch (err) {
-      console.error("[email-agent] Error fetching email from Resend API:", err);
-    }
-  } else {
-    console.log("[email-agent] No email ID found in payload — cannot fetch body");
-  }
-
-  // Fallback: try reading body from webhook payload directly
-  if (!bodyText) {
-    bodyText = data.text || data.html || payload.text || payload.html || "";
-    console.log("[email-agent] Fallback body length:", bodyText.length);
-  }
+  // Resend inbound webhooks do NOT include the email body (text/html fields
+  // are not present). The /emails/{id} API only works for outbound emails.
+  // We classify and draft replies based on subject + sender context only.
+  const bodyText: string = data.text || data.html || payload.text || payload.html || "";
 
   console.log("[email-agent] Processing:", { fromEmail, subject, bodyLength: bodyText.length });
 
@@ -187,9 +160,29 @@ export async function processInboundEmail(payload: any) {
 Your job is to:
 1. Classify the intent of the inbound email
 2. Draft a warm, professional reply in the correct language
-3. Use the tenant context provided to make the reply specific and accurate
+3. Use the sender context provided to make the reply specific and accurate
 
-PARKING INFO (use when replying to availability, pricing, or conditions questions):
+IMPORTANT: The email body may be empty — Resend inbound webhooks often only
+provide the subject line. You MUST classify and draft a reply based on the
+subject line and sender context alone. This is normal and expected.
+
+Classification logic:
+- Subject mentions "parking", "space", "spot", "available", "estacionamento",
+  "lugar", "vaga", "price", "preço", OR sender is unknown/waitlist
+  → classify as waitlist_enquiry
+- Sender is a known tenant and subject mentions "payment", "paid", "transfer",
+  "pagamento", "pago", "transferência"
+  → classify as payment_query
+- Sender is a known tenant and subject mentions "will pay", "friday", "soon",
+  "vou pagar", "sexta"
+  → classify as payment_promise
+- Subject mentions "remote", "control", "comando", "broken", "avariado"
+  → classify as remote_issue
+- Subject mentions "problem", "issue", "complaint", "problema", "reclamação"
+  → classify as complaint
+- Otherwise → classify as other
+
+PARKING INFO (use when replying to waitlist_enquiry):
 - Private, covered, numbered parking spots at Rua da Torrinha 149, Porto
 - Price: €120/month per car
 - Remote control access to garage (€50 deposit)
@@ -197,16 +190,8 @@ PARKING INFO (use when replying to availability, pricing, or conditions question
 - Official and insured spots
 - Long-term rental only — 30 days notice required from both parties
 - Payment via MBWay or monthly bank transfer (IBAN)
-- Currently all spots are occupied — prospects should join the waiting list
-- Waiting list URL: https://torrinha149.com
-
-Classification options:
-  payment_query    — asking about their payment status
-  payment_promise  — promising to pay soon
-  complaint        — unhappy about something
-  remote_issue     — problem with remote control
-  waitlist_enquiry — prospective tenant asking about availability
-  other            — anything else
+- Currently all spots are currently occupied
+- Waiting list: https://torrinha149.com
 
 Urgency options:
   normal           — standard reply, no rush
@@ -217,20 +202,24 @@ Tone: friendly, warm, concise. This is a small community of friends-of-friends.
 Never be cold or corporate. Sign off as 'Dulcineia & Georges'.
 
 Language: reply in the tenant's preferred language (pt or en).
-If sender is unknown, reply in the language they wrote in.
+If sender is unknown, guess language from subject line. If ambiguous, use Portuguese.
 
 When replying to a waitlist enquiry or pricing question:
-- Share the relevant parking info warmly and concisely
+- Share the parking info warmly and concisely
 - Mention that all spots are currently occupied
 - Invite them to join the waiting list at https://torrinha149.com
-- If they are already on the waiting list, acknowledge it and thank them for their patience
+- If they are already on the waiting list, acknowledge it and thank them
+
+When replying to a known tenant about payments:
+- Check their payment context and reply with their current status
+- Be specific: mention the month, amount, and whether it's paid/pending/overdue
 
 Return ONLY valid JSON — no prose, no markdown.`;
 
   const userPrompt = `Inbound email:
 From: ${fromName} <${fromEmail}>
 Subject: ${subject}
-Body: ${bodyText}
+Body: ${bodyText || "(not available — classify based on subject and sender context)"}
 
 Sender context:
 ${JSON.stringify(senderContext, null, 2)}`;

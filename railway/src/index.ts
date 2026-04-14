@@ -427,11 +427,6 @@ app.post("/webhooks/email-inbound", async (req, res) => {
     const eventType = webhook.type || "";
     const data = webhook.data || webhook;
 
-    // Log webhook.data to see exactly what Resend sends
-    console.log("[email-inbound] webhook.type:", eventType);
-    console.log("[email-inbound] webhook.data keys:", data ? Object.keys(data) : "null");
-    console.log("[email-inbound] webhook.data:", JSON.stringify(data).substring(0, 500));
-
     if (eventType && eventType !== "email.received") {
       console.log("[email-inbound] Skipping non-inbound event:", eventType);
       res.json({ ok: true, skipped: true });
