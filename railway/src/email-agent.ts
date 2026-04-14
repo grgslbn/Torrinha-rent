@@ -38,18 +38,6 @@ function prevMonths(count: number): string[] {
   return result;
 }
 
-type InboundPayload = {
-  from: string;
-  from_name?: string;
-  to: string;
-  subject: string;
-  text: string;
-  html?: string;
-  message_id?: string;
-  in_reply_to?: string;
-  references?: string;
-};
-
 type ClaudeResponse = {
   classification: string;
   urgency: string;
@@ -60,13 +48,28 @@ type ClaudeResponse = {
   suggested_action?: string;
 };
 
-export async function processInboundEmail(payload: InboundPayload) {
+// Accept any shape — we extract fields defensively
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function processInboundEmail(payload: any) {
+  // Debug: log exactly what we received
+  console.log("RAW PAYLOAD KEYS:", Object.keys(payload));
+  console.log("RAW PAYLOAD:", JSON.stringify(payload).substring(0, 500));
+
+  // Extract fields — handle both { data: { ... } } and flat shapes
+  const data = payload.data || payload;
+  const fromRaw: string = data.from || payload.from || "";
+  const subject: string = data.subject || payload.subject || "(no subject)";
+  const bodyText: string = data.text || data.html || data.body || data.plain || payload.text || payload.html || "";
+  const threadId: string = data.threadId || data.thread_id || data.in_reply_to || payload.in_reply_to || payload.message_id || "";
+
+  // Parse "Name <email>" format
+  const fromMatch = fromRaw.match(/^(.+?)\s*<(.+?)>$/);
+  const fromName = fromMatch ? fromMatch[1].trim() : (payload.from_name || fromRaw.split("@")[0]);
+  const fromEmail = (fromMatch ? fromMatch[2].trim() : fromRaw).toLowerCase().trim();
+
+  console.log("[email-agent] Extracted:", { fromEmail, fromName, subject, bodyLength: bodyText.length, threadId });
+
   const db = supabase();
-  const fromEmail = payload.from.toLowerCase().trim();
-  const fromName = payload.from_name || fromEmail.split("@")[0];
-  const subject = payload.subject || "(no subject)";
-  const bodyText = payload.text || "";
-  const threadId = payload.in_reply_to || payload.message_id || null;
 
   // --- Look up sender ---
   // Check tenants first
