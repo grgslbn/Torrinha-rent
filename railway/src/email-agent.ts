@@ -162,9 +162,12 @@ Your job is to:
 2. Draft a warm, professional reply in the correct language
 3. Use the sender context provided to make the reply specific and accurate
 
-IMPORTANT: The email body may be empty — Resend inbound webhooks often only
-provide the subject line. You MUST classify and draft a reply based on the
-subject line and sender context alone. This is normal and expected.
+IMPORTANT: The email body is almost always empty — Resend inbound webhooks do
+not include it. You MUST classify and draft based on the subject line and
+sender context alone. This is normal and expected.
+A subject mentioning parking, spot, place, vaga, estacionamento, garage,
+remote, telecomando is always a waitlist_enquiry or remote_issue.
+You MUST always generate a non-empty draft_body — never leave it blank.
 
 Classification logic:
 - Subject mentions "parking", "space", "spot", "available", "estacionamento",
@@ -271,6 +274,20 @@ ${JSON.stringify(senderContext, null, 2)}`;
       draft_subject: `Re: ${subject}`,
       draft_body: "",
     };
+  }
+
+  // --- Hardcoded fallback if Claude returned empty draft ---
+  if (!claudeResult.draft_body) {
+    const isPortuguese = !!subject.match(/estacion|lugar|vaga|garagem|telecomando/i)
+      || fromEmail.endsWith(".pt");
+    claudeResult.draft_body = isPortuguese
+      ? `Olá,\n\nObrigado pelo seu contacto.\n\nDe momento todos os lugares estão ocupados. Pode entrar na lista de espera em https://torrinha149.com\n\nPreço: 120€/mês · Caução telecomando: 50€ · Acesso 24/7\n\nCom os melhores cumprimentos,\nDulcineia & Georges`
+      : `Hello,\n\nThank you for your message.\n\nAll parking spots are currently occupied. You can join our waiting list at https://torrinha149.com\n\nPrice: €120/month · Remote deposit: €50 · 24/7 access\n\nBest regards,\nDulcineia & Georges`;
+    claudeResult.classification = claudeResult.classification || "waitlist_enquiry";
+    claudeResult.confidence = "high";
+    if (!claudeResult.draft_subject) {
+      claudeResult.draft_subject = `Re: ${subject}`;
+    }
   }
 
   const draftLanguage = tenant?.language ?? (subject.match(/[àáâãçéêíóôõú]/i) ? "pt" : "en");
