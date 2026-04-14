@@ -423,16 +423,20 @@ app.post("/webhooks/email-inbound", async (req, res) => {
     const webhook = JSON.parse(rawBody);
 
     // Only process emails addressed to our parking domain
-    const toAddresses: string[] = webhook.data?.to || [];
-    const isForTorrinha = toAddresses.some((addr: string) =>
-      addr.includes("torrinha149.com")
-    );
+    // Handle both string[] and object[] formats from Resend
+    const toAddresses = webhook.data?.to || [];
+    const isForTorrinha = toAddresses.some((addr: unknown) => {
+      const email = typeof addr === "string" ? addr : (addr as Record<string, string>)?.email || (addr as Record<string, string>)?.address || String(addr);
+      return email.includes("torrinha149.com");
+    });
 
     if (!isForTorrinha) {
-      console.log("[email-inbound] Ignored — not addressed to torrinha149.com:", toAddresses);
+      console.log("[email-inbound] Ignored:", JSON.stringify(toAddresses));
       res.status(200).json({ ignored: true });
       return;
     }
+
+    console.log("[email-inbound] Accepted for torrinha149.com:", JSON.stringify(toAddresses));
 
     // Resend email.received webhook format:
     // { type: "email.received", data: { id, from, to, subject, text, html, ... } }
