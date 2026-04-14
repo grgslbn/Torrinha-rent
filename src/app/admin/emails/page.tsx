@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import Link from "next/link";
 
 type Template =
   | "thank-you"
@@ -136,7 +137,15 @@ export default function EmailsPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Email Templates</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Email Templates</h1>
+        <Link
+          href="/admin/emails/templates"
+          className="px-3 py-1.5 text-xs bg-gray-700 text-white rounded-md hover:bg-gray-800"
+        >
+          Edit Templates
+        </Link>
+      </div>
 
       {/* Section 1 — Email Preview */}
       <div className="bg-white rounded-lg shadow p-5 mb-6">

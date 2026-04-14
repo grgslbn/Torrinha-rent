@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { createClient } from "@supabase/supabase-js";
 
 let _resend: Resend | null = null;
 function getResend(): Resend {
@@ -6,6 +7,13 @@ function getResend(): Resend {
     _resend = new Resend(process.env.RESEND_API_KEY);
   }
   return _resend;
+}
+
+function supabase() {
+  return createClient(
+    process.env.SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
 }
 
 type TenantInfo = {
@@ -31,6 +39,36 @@ function formatMonth(month: string, lang: string): string {
 function isDryRun(): boolean {
   return process.env.EMAIL_DRY_RUN === "true";
 }
+
+// --- Fetch template from DB with hardcoded fallback ---
+
+async function getTemplate(
+  key: string
+): Promise<{ subject: string; body: string } | null> {
+  try {
+    const { data } = await supabase()
+      .from("torrinha_email_templates")
+      .select("subject, body")
+      .eq("key", key)
+      .single();
+    return data ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function applyPlaceholders(
+  text: string,
+  vars: Record<string, string>
+): string {
+  let result = text;
+  for (const [k, v] of Object.entries(vars)) {
+    result = result.replace(new RegExp(`\\{\\{${k}\\}\\}`, "g"), v);
+  }
+  return result;
+}
+
+// --- Send email (shared) ---
 
 async function sendEmail(
   to: string,
@@ -72,47 +110,61 @@ async function sendEmail(
   }
 }
 
-// --- Thank-you email (sent after payment confirmed) ---
+// --- Thank-you email ---
 
 export async function sendThankYouEmail(
   tenant: TenantInfo,
   payment: { month: string; amount_eur: number }
 ): Promise<{ success: boolean; error?: string }> {
-  const monthStr = formatMonth(payment.month, tenant.language);
   const isPt = tenant.language === "pt";
+  const monthStr = formatMonth(payment.month, tenant.language);
+  const vars = { tenant_name: tenant.name, amount: String(payment.amount_eur), month: monthStr };
 
-  const subject = isPt
-    ? `Torrinha — Pagamento recebido (${monthStr})`
-    : `Torrinha — Payment received (${monthStr})`;
+  const tpl = await getTemplate(isPt ? "payment_thankyou_pt" : "payment_thankyou_en");
 
-  const body = isPt
-    ? `Olá ${tenant.name},\n\nConfirmamos a receção do seu pagamento de €${payment.amount_eur} referente a ${monthStr}.\n\nObrigado!\nTorrinha Parking`
-    : `Hi ${tenant.name},\n\nWe confirm receipt of your payment of €${payment.amount_eur} for ${monthStr}.\n\nThank you!\nTorrinha Parking`;
+  const subject = tpl
+    ? applyPlaceholders(tpl.subject, vars)
+    : isPt
+      ? `Torrinha — Pagamento recebido (${monthStr})`
+      : `Torrinha — Payment received (${monthStr})`;
+
+  const body = tpl
+    ? applyPlaceholders(tpl.body, vars)
+    : isPt
+      ? `Olá ${tenant.name},\n\nConfirmamos a receção do seu pagamento de €${payment.amount_eur} referente a ${monthStr}.\n\nObrigado!\nTorrinha Parking`
+      : `Hi ${tenant.name},\n\nWe confirm receipt of your payment of €${payment.amount_eur} for ${monthStr}.\n\nThank you!\nTorrinha Parking`;
 
   return sendEmail(tenant.email, subject, body);
 }
 
-// --- Payment reminder (sent to tenant on 8th) ---
+// --- Payment reminder ---
 
 export async function sendReminderEmail(
   tenant: TenantInfo,
   payment: { month: string; amount_eur: number }
 ): Promise<{ success: boolean; error?: string }> {
-  const monthStr = formatMonth(payment.month, tenant.language);
   const isPt = tenant.language === "pt";
+  const monthStr = formatMonth(payment.month, tenant.language);
+  const vars = { tenant_name: tenant.name, amount: String(payment.amount_eur), month: monthStr };
 
-  const subject = isPt
-    ? `Torrinha — Lembrete de pagamento (${monthStr})`
-    : `Torrinha — Payment reminder (${monthStr})`;
+  const tpl = await getTemplate(isPt ? "payment_reminder_pt" : "payment_reminder_en");
 
-  const body = isPt
-    ? `Olá ${tenant.name},\n\nEste é um lembrete amigável de que a sua renda de €${payment.amount_eur} referente a ${monthStr} ainda não foi recebida.\n\nPor favor proceda ao pagamento assim que possível.\n\nObrigado!\nTorrinha Parking`
-    : `Hi ${tenant.name},\n\nThis is a friendly reminder that your rent of €${payment.amount_eur} for ${monthStr} has not yet been received.\n\nPlease arrange payment at your earliest convenience.\n\nThank you!\nTorrinha Parking`;
+  const subject = tpl
+    ? applyPlaceholders(tpl.subject, vars)
+    : isPt
+      ? `Torrinha — Lembrete de pagamento (${monthStr})`
+      : `Torrinha — Payment reminder (${monthStr})`;
+
+  const body = tpl
+    ? applyPlaceholders(tpl.body, vars)
+    : isPt
+      ? `Olá ${tenant.name},\n\nEste é um lembrete amigável de que a sua renda de €${payment.amount_eur} referente a ${monthStr} ainda não foi recebida.\n\nPor favor proceda ao pagamento assim que possível.\n\nObrigado!\nTorrinha Parking`
+      : `Hi ${tenant.name},\n\nThis is a friendly reminder that your rent of €${payment.amount_eur} for ${monthStr} has not yet been received.\n\nPlease arrange payment at your earliest convenience.\n\nThank you!\nTorrinha Parking`;
 
   return sendEmail(tenant.email, subject, body);
 }
 
-// --- Owner alert: unpaid summary on 5th ---
+// --- Owner alert: unpaid ---
 
 export async function sendOwnerUnpaidAlert(
   unpaidTenants: { name: string; rent_eur: number; spots: string }[],
@@ -122,17 +174,23 @@ export async function sendOwnerUnpaidAlert(
   if (!ownerEmail) return { success: false, error: "OWNER_EMAIL not set" };
 
   const monthStr = formatMonth(month, "en");
-  const lines = unpaidTenants.map(
-    (t) => `  - ${t.name} (${t.spots}) — €${t.rent_eur}`
-  );
+  const tenantList = unpaidTenants.map((t) => `  - ${t.name} (${t.spots}) — €${t.rent_eur}`).join("\n");
+  const vars = { month: monthStr, count: String(unpaidTenants.length), tenant_list: tenantList };
 
-  const subject = `Torrinha — ${unpaidTenants.length} unpaid for ${monthStr}`;
-  const body = `Hi,\n\nThe following tenants have not yet paid for ${monthStr}:\n\n${lines.join("\n")}\n\nTorrinha Parking`;
+  const tpl = await getTemplate("owner_alert_unpaid");
+
+  const subject = tpl
+    ? applyPlaceholders(tpl.subject, vars)
+    : `Torrinha — ${unpaidTenants.length} unpaid for ${monthStr}`;
+
+  const body = tpl
+    ? applyPlaceholders(tpl.body, vars)
+    : `Hi,\n\nThe following tenants have not yet paid for ${monthStr}:\n\n${tenantList}\n\nTorrinha Parking`;
 
   return sendEmail(ownerEmail, subject, body);
 }
 
-// --- Owner escalation: overdue list on 15th ---
+// --- Owner alert: overdue ---
 
 export async function sendOwnerOverdueAlert(
   overdueTenants: { name: string; rent_eur: number; spots: string }[],
@@ -142,12 +200,18 @@ export async function sendOwnerOverdueAlert(
   if (!ownerEmail) return { success: false, error: "OWNER_EMAIL not set" };
 
   const monthStr = formatMonth(month, "en");
-  const lines = overdueTenants.map(
-    (t) => `  - ${t.name} (${t.spots}) — €${t.rent_eur}`
-  );
+  const tenantList = overdueTenants.map((t) => `  - ${t.name} (${t.spots}) — €${t.rent_eur}`).join("\n");
+  const vars = { month: monthStr, count: String(overdueTenants.length), tenant_list: tenantList };
 
-  const subject = `Torrinha — ${overdueTenants.length} OVERDUE for ${monthStr}`;
-  const body = `Hi,\n\nThe following tenants are now overdue for ${monthStr}:\n\n${lines.join("\n")}\n\nThese payments have been marked as overdue in the system.\n\nTorrinha Parking`;
+  const tpl = await getTemplate("owner_alert_overdue");
+
+  const subject = tpl
+    ? applyPlaceholders(tpl.subject, vars)
+    : `Torrinha — ${overdueTenants.length} OVERDUE for ${monthStr}`;
+
+  const body = tpl
+    ? applyPlaceholders(tpl.body, vars)
+    : `Hi,\n\nThe following tenants are now overdue for ${monthStr}:\n\n${tenantList}\n\nThese payments have been marked as overdue in the system.\n\nTorrinha Parking`;
 
   return sendEmail(ownerEmail, subject, body);
 }
