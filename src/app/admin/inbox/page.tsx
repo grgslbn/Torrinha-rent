@@ -124,6 +124,32 @@ export default function InboxPage() {
     }
   }
 
+  async function handleDelete() {
+    if (!selected) return;
+    if (!confirm("Are you sure you want to permanently delete this email?")) return;
+    const res = await fetch("/api/admin/inbox", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: selected.id }),
+    });
+    if (res.ok) {
+      setItems((prev) => prev.filter((i) => i.id !== selected.id));
+      setSelected(null);
+    }
+  }
+
+  async function handleDeleteAllDismissed() {
+    if (!confirm("Permanently delete all dismissed emails? This cannot be undone.")) return;
+    const res = await fetch("/api/admin/inbox", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ bulk_status: "dismissed" }),
+    });
+    if (res.ok) {
+      setItems((prev) => prev.filter((i) => i.status !== "dismissed"));
+    }
+  }
+
   const pendingCount = items.filter((i) => i.status === "pending").length;
 
   return (
@@ -138,7 +164,7 @@ export default function InboxPage() {
           )}
         </h1>
         {/* Filter tabs */}
-        <div className="flex gap-1">
+        <div className="flex items-center gap-1">
           {(["all", "pending", "sent", "dismissed"] as Filter[]).map((f) => (
             <button
               key={f}
@@ -152,6 +178,14 @@ export default function InboxPage() {
               {f.charAt(0).toUpperCase() + f.slice(1)}
             </button>
           ))}
+          {filter === "dismissed" && items.length > 0 && (
+            <button
+              onClick={handleDeleteAllDismissed}
+              className="ml-2 px-3 py-1 rounded text-xs font-medium text-red-600 hover:bg-red-50"
+            >
+              Delete all dismissed
+            </button>
+          )}
         </div>
       </div>
 
@@ -307,20 +341,28 @@ export default function InboxPage() {
                 </button>
                 <button
                   onClick={handleDismiss}
-                  className="px-4 py-2 text-sm text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-md ml-auto"
+                  className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md ml-auto"
                 >
                   Dismiss
+                </button>
+                <button
+                  onClick={handleDelete}
+                  className="px-4 py-2 text-sm text-red-500 hover:text-red-700 hover:bg-red-50 rounded-md"
+                >
+                  Delete
                 </button>
               </div>
             )}
             {selected.status === "sent" && (
-              <div className="p-4 border-t border-gray-200 bg-green-50 text-sm text-green-700">
-                Sent {selected.sent_at ? timeAgo(selected.sent_at) : ""}
+              <div className="p-4 border-t border-gray-200 bg-green-50 text-sm text-green-700 flex items-center justify-between">
+                <span>Sent {selected.sent_at ? timeAgo(selected.sent_at) : ""}</span>
+                <button onClick={handleDelete} className="text-xs text-red-500 hover:text-red-700">Delete</button>
               </div>
             )}
             {selected.status === "dismissed" && (
-              <div className="p-4 border-t border-gray-200 bg-gray-50 text-sm text-gray-500">
-                Dismissed
+              <div className="p-4 border-t border-gray-200 bg-gray-50 text-sm text-gray-500 flex items-center justify-between">
+                <span>Dismissed</span>
+                <button onClick={handleDelete} className="text-xs text-red-500 hover:text-red-700">Delete</button>
               </div>
             )}
           </div>
