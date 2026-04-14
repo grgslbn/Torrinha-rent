@@ -186,7 +186,7 @@ export default function InboxPage() {
                     <span className={`w-2 h-2 rounded-full shrink-0 ${URGENCY_COLORS[item.urgency] ?? "bg-gray-300"}`} />
                     {/* Sender */}
                     <span className="text-sm font-medium text-gray-900 truncate">
-                      {item.from_name || item.from_email}
+                      {item.from_name || item.from_email || "(unknown sender)"}
                     </span>
                     {/* Classification badge */}
                     {item.classification && (
@@ -235,15 +235,16 @@ export default function InboxPage() {
                 <h3 className="text-xs font-medium text-gray-500 uppercase mb-2">Original Email</h3>
                 <div className="text-sm mb-1">
                   <span className="font-medium text-gray-700">From:</span>{" "}
-                  <span className="text-gray-900">{selected.from_name || ""} &lt;{selected.from_email}&gt;</span>
+                  <span className="text-gray-900">{selected.from_name || "(no name)"} &lt;{selected.from_email || "(no email)"}&gt;</span>
                 </div>
                 <div className="text-sm mb-2">
                   <span className="font-medium text-gray-700">Subject:</span>{" "}
                   <span className="text-gray-900">{selected.subject || "(no subject)"}</span>
                 </div>
                 <pre className="text-sm text-gray-700 whitespace-pre-wrap font-sans bg-gray-50 rounded p-3 max-h-48 overflow-y-auto">
-                  {selected.body_text}
+                  {selected.body_text || "(empty body)"}
                 </pre>
+                <p className="text-xs text-gray-300 mt-1">ID: {selected.id}</p>
               </div>
 
               {/* Draft reply */}
