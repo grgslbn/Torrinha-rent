@@ -242,7 +242,7 @@ ${JSON.stringify(senderContext, null, 2)}`;
     const ownerEmail = process.env.OWNER_EMAIL;
     if (ownerEmail) {
       await resend.emails.send({
-        from: process.env.PARKING_EMAIL || process.env.EMAIL_FROM || "parking@torrinha149.com",
+        from: process.env.PARKING_EMAIL || process.env.EMAIL_FROM || "parking@mail.torrinha149.com",
         to: ownerEmail,
         cc: "georges.lieben@gmail.com",
         subject: `[URGENT] Torrinha inbox: ${subject}`,

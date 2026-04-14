@@ -472,7 +472,7 @@ app.post("/email/send-reply", requireCronSecret, async (req, res) => {
     // Send via Resend
     const { Resend } = await import("resend");
     const resend = new Resend(process.env.RESEND_API_KEY);
-    const fromAddr = process.env.PARKING_EMAIL || process.env.EMAIL_FROM || "parking@torrinha149.com";
+    const fromAddr = process.env.PARKING_EMAIL || process.env.EMAIL_FROM || "parking@mail.torrinha149.com";
 
     const { error: sendError } = await resend.emails.send({
       from: fromAddr,
