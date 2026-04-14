@@ -64,29 +64,33 @@ export async function processInboundEmail(payload: any) {
 
   // Resend inbound webhooks do NOT include the email body.
   // Fetch the full email content from the Resend API.
+  // Try multiple ID sources — Resend uses email_id in webhooks
+  const messageId = payload.data?.email_id || payload.data?.id || payload.email_id || emailId;
+  console.log("[email-agent] Fetching email ID:", messageId);
+  console.log("[email-agent] RESEND_API_KEY present:", !!process.env.RESEND_API_KEY);
+
   let bodyText = "";
-  if (emailId) {
+  if (messageId) {
     try {
-      const emailRes = await fetch(`https://api.resend.com/emails/${emailId}`, {
-        headers: {
-          Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-          "Content-Type": "application/json",
-        },
+      const emailRes = await fetch(`https://api.resend.com/emails/${messageId}`, {
+        headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}` },
       });
-      if (emailRes.ok) {
-        const fullEmail = await emailRes.json() as Record<string, unknown>;
-        bodyText = (fullEmail.text as string) || (fullEmail.html as string) || "";
-      } else {
-        console.error("[email-agent] Failed to fetch email from Resend API:", emailRes.status);
-      }
+      console.log("[email-agent] Resend API status:", emailRes.status);
+      const fullEmail = await emailRes.json() as Record<string, unknown>;
+      console.log("[email-agent] Resend API response:", JSON.stringify(fullEmail).substring(0, 500));
+      bodyText = (fullEmail.text as string) || (fullEmail.html as string) || "";
+      console.log("[email-agent] Body length after fetch:", bodyText.length);
     } catch (err) {
       console.error("[email-agent] Error fetching email from Resend API:", err);
     }
+  } else {
+    console.log("[email-agent] No email ID found in payload — cannot fetch body");
   }
 
-  // Fallback: try reading body from webhook payload directly (in case Resend changes behaviour)
+  // Fallback: try reading body from webhook payload directly
   if (!bodyText) {
     bodyText = data.text || data.html || payload.text || payload.html || "";
+    console.log("[email-agent] Fallback body length:", bodyText.length);
   }
 
   console.log("[email-agent] Processing:", { fromEmail, subject, bodyLength: bodyText.length });
