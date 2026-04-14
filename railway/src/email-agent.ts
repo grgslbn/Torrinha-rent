@@ -1,6 +1,21 @@
 import { createClient } from "@supabase/supabase-js";
 import Anthropic from "@anthropic-ai/sdk";
 
+// --- Parking info (update here when pricing or conditions change) ---
+
+const PARKING_INFO = {
+  location: "Rua da Torrinha 149, Porto",
+  description: "Private, covered, numbered parking spots",
+  price: "€120/month per car",
+  remote_deposit: "€50 deposit for remote control access to garage",
+  access: "Available 24/7, exclusive access for tenants only",
+  official: "Official and insured spots",
+  terms: "Long-term rental only — 30 days notice required from both parties",
+  payment_methods: "MBWay or monthly bank transfer (IBAN)",
+  current_availability: "All spots are currently occupied — prospects should join the waiting list",
+  waitlist_url: "https://torrinha149.com",
+};
+
 function supabase() {
   return createClient(
     process.env.SUPABASE_URL!,
@@ -132,23 +147,29 @@ export async function processInboundEmail(payload: InboundPayload) {
     };
 
     // Add parking info for prospects
-    (senderContext as Record<string, unknown>).parking_info = {
-      location: "Rua da Torrinha 149, Porto",
-      available_spots: available,
-      price_range: "€40 - €260/month depending on spot",
-      waitlist_url: "https://torrinha149.com",
-    };
+    (senderContext as Record<string, unknown>).parking_info = PARKING_INFO;
   }
 
   // --- Call Claude ---
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-  const systemPrompt = `You are an email assistant for Torrinha Parking, a small private parking facility at Rua da Torrinha 149, Porto, Portugal. The owner is Georges.
+  const systemPrompt = `You are an email assistant for Torrinha Parking, a small private parking facility in Porto, Portugal. The owners are Dulcineia & Georges.
 
 Your job is to:
 1. Classify the intent of the inbound email
 2. Draft a warm, professional reply in the correct language
 3. Use the tenant context provided to make the reply specific and accurate
+
+PARKING INFO (use when replying to availability, pricing, or conditions questions):
+- Private, covered, numbered parking spots at Rua da Torrinha 149, Porto
+- Price: €120/month per car
+- Remote control access to garage (€50 deposit)
+- Available 24/7, exclusive access for tenants only
+- Official and insured spots
+- Long-term rental only — 30 days notice required from both parties
+- Payment via MBWay or monthly bank transfer (IBAN)
+- Currently all spots are occupied — prospects should join the waiting list
+- Waiting list URL: https://torrinha149.com
 
 Classification options:
   payment_query    — asking about their payment status
@@ -164,10 +185,16 @@ Urgency options:
   urgent           — owner must act soon
 
 Tone: friendly, warm, concise. This is a small community of friends-of-friends.
-Never be cold or corporate. Sign off as 'Torrinha Parking'.
+Never be cold or corporate. Sign off as 'Dulcineia & Georges'.
 
 Language: reply in the tenant's preferred language (pt or en).
 If sender is unknown, reply in the language they wrote in.
+
+When replying to a waitlist enquiry or pricing question:
+- Share the relevant parking info warmly and concisely
+- Mention that all spots are currently occupied
+- Invite them to join the waiting list at https://torrinha149.com
+- If they are already on the waiting list, acknowledge it and thank them for their patience
 
 Return ONLY valid JSON — no prose, no markdown.`;
 
