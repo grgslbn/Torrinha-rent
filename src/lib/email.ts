@@ -123,7 +123,7 @@ async function sendEmail(
   subject: string,
   text: string
 ): Promise<{ success: boolean; error?: string }> {
-  const from = process.env.EMAIL_FROM || "noreply@torrinha.com";
+  const from = process.env.PARKING_EMAIL || process.env.EMAIL_FROM || "parking@torrinha149.com";
   try {
     const { error } = await getResend().emails.send({ from, to, subject, text, cc: "georges.lieben@gmail.com" });
     if (error) {

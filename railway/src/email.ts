@@ -37,7 +37,7 @@ async function sendEmail(
   subject: string,
   text: string
 ): Promise<{ success: boolean; error?: string }> {
-  const from = process.env.EMAIL_FROM || "noreply@torrinha.com";
+  const from = process.env.PARKING_EMAIL || process.env.EMAIL_FROM || "parking@torrinha149.com";
 
   let actualTo = to;
   let actualSubject = subject;

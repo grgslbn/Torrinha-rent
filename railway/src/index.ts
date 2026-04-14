@@ -8,8 +8,13 @@ import {
   sendOwnerOverdueAlert,
 } from "./email";
 import { startCrons } from "./crons";
+import { processInboundEmail } from "./email-agent";
+import { createHmac, timingSafeEqual } from "crypto";
 
 const app = express();
+
+// Raw body needed for webhook signature verification
+app.use("/webhooks/email-inbound", express.raw({ type: "*/*" }));
 app.use(express.json());
 
 // --- Supabase service client ---
@@ -388,6 +393,137 @@ app.post("/cron/escalate-owner", requireCronSecret, async (_req, res) => {
   } catch (err) {
     console.error("[escalate-owner] Error:", err);
     res.status(500).json({ error: "Failed to escalate" });
+  }
+});
+
+// ============================================================
+// POST /webhooks/email-inbound — Resend inbound email webhook
+// ============================================================
+
+app.post("/webhooks/email-inbound", async (req, res) => {
+  // Verify Resend webhook signature
+  const secret = process.env.RESEND_INBOUND_SECRET;
+  if (secret) {
+    const signature = req.headers["resend-signature"] as string | undefined;
+    const rawBody = typeof req.body === "string" ? req.body : req.body?.toString("utf-8") ?? "";
+    if (signature) {
+      const expected = createHmac("sha256", secret).update(rawBody).digest("hex");
+      try {
+        if (!timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
+          res.status(401).json({ error: "Invalid signature" });
+          return;
+        }
+      } catch {
+        res.status(401).json({ error: "Invalid signature" });
+        return;
+      }
+    }
+  }
+
+  try {
+    const body = typeof req.body === "string" ? JSON.parse(req.body) : JSON.parse(req.body?.toString("utf-8") ?? "{}");
+
+    const payload = {
+      from: body.from || body.envelope?.from || "",
+      from_name: body.from_name || body.headers?.from?.split("<")[0]?.trim() || "",
+      to: body.to || body.envelope?.to?.[0] || "",
+      subject: body.subject || body.headers?.subject || "",
+      text: body.text || body.body || "",
+      html: body.html || "",
+      message_id: body.message_id || body.headers?.["message-id"] || "",
+      in_reply_to: body.in_reply_to || body.headers?.["in-reply-to"] || "",
+      references: body.references || body.headers?.references || "",
+    };
+
+    const result = await processInboundEmail(payload);
+    res.json({ ok: true, id: result?.id });
+  } catch (err) {
+    console.error("[email-inbound] Error:", err);
+    res.status(500).json({ error: "Processing failed" });
+  }
+});
+
+// ============================================================
+// POST /email/send-reply — send a drafted reply from the inbox
+// ============================================================
+
+app.post("/email/send-reply", requireCronSecret, async (req, res) => {
+  try {
+    const { inbox_id, subject, body: replyBody } = req.body;
+    if (!inbox_id || !replyBody) {
+      res.status(400).json({ error: "inbox_id and body are required" });
+      return;
+    }
+
+    const db = supabase();
+
+    // Get the original inbox item
+    const { data: inboxItem, error: fetchError } = await db
+      .from("torrinha_inbox")
+      .select("from_email, from_name")
+      .eq("id", inbox_id)
+      .single();
+
+    if (fetchError || !inboxItem) {
+      res.status(404).json({ error: "Inbox item not found" });
+      return;
+    }
+
+    // Send via Resend
+    const { Resend } = await import("resend");
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    const fromAddr = process.env.PARKING_EMAIL || process.env.EMAIL_FROM || "parking@torrinha149.com";
+
+    const { error: sendError } = await resend.emails.send({
+      from: fromAddr,
+      to: inboxItem.from_email,
+      cc: "georges.lieben@gmail.com",
+      subject: subject || "Re: (no subject)",
+      text: replyBody,
+    });
+
+    if (sendError) {
+      console.error("[send-reply] Resend error:", sendError);
+      res.status(500).json({ error: sendError.message });
+      return;
+    }
+
+    // Update inbox status
+    await db
+      .from("torrinha_inbox")
+      .update({
+        status: "sent",
+        sent_at: new Date().toISOString(),
+        draft_subject: subject,
+        draft_body: replyBody,
+      })
+      .eq("id", inbox_id);
+
+    console.log(`[send-reply] Sent reply for inbox ${inbox_id} to ${inboxItem.from_email}`);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[send-reply] Error:", err);
+    res.status(500).json({ error: "Failed to send reply" });
+  }
+});
+
+// ============================================================
+// GET /inbox/pending-count — count of pending inbox items
+// ============================================================
+
+app.get("/inbox/pending-count", requireCronSecret, async (_req, res) => {
+  try {
+    const db = supabase();
+    const { count, error } = await db
+      .from("torrinha_inbox")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "pending");
+
+    if (error) throw error;
+    res.json({ pending: count ?? 0 });
+  } catch (err) {
+    console.error("[pending-count] Error:", err);
+    res.status(500).json({ error: "Failed to get count" });
   }
 });
 

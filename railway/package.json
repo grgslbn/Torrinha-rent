@@ -8,6 +8,7 @@
     "dev": "tsx watch src/index.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.88.0",
     "@supabase/supabase-js": "^2.102.1",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",

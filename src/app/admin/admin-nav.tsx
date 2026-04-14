@@ -10,6 +10,7 @@ const navLinks = [
   { href: "/admin/payments", label: "Payments" },
   { href: "/admin/remotes", label: "Remotes" },
   { href: "/admin/waitlist", label: "Waitlist" },
+  { href: "/admin/inbox", label: "Inbox" },
   { href: "/admin/connect-bank", label: "Bank" },
   { href: "/admin/emails", label: "Emails" },
 ];
