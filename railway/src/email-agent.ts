@@ -237,11 +237,6 @@ ${JSON.stringify(senderContext, null, 2)}`;
 
   let claudeResult: ClaudeResponse;
 
-  console.log("[claude] Calling Claude API...");
-  console.log("[claude] ANTHROPIC_API_KEY present:", !!process.env.ANTHROPIC_API_KEY);
-  console.log("[claude] ANTHROPIC_API_KEY length:", process.env.ANTHROPIC_API_KEY?.length ?? 0);
-  console.log("[claude] User prompt preview:", userPrompt.substring(0, 300));
-
   try {
     const response = await anthropic.messages.create({
       model: "claude-sonnet-4-20250514",
@@ -250,10 +245,7 @@ ${JSON.stringify(senderContext, null, 2)}`;
       messages: [{ role: "user", content: userPrompt }],
     });
 
-    console.log("[claude] Response received:", response.content[0]?.type);
     const text = response.content[0].type === "text" ? response.content[0].text : "";
-    console.log("[claude] Raw text:", text.substring(0, 300));
-
     const jsonStr = text.replace(/```json?\n?/g, "").replace(/```/g, "").trim();
     const parsed = JSON.parse(jsonStr);
 
@@ -268,13 +260,9 @@ ${JSON.stringify(senderContext, null, 2)}`;
       draft_body: parsed.draft_body || reply.body || parsed.body || parsed.message || "",
       suggested_action: parsed.suggested_action || reply.suggested_action,
     };
-    console.log("[claude] Parsed OK:", { classification: claudeResult.classification, confidence: claudeResult.confidence, draft_length: claudeResult.draft_body?.length ?? 0 });
   } catch (err: unknown) {
     const errMsg = err instanceof Error ? err.message : String(err);
-    const errStatus = (err as { status?: number }).status;
-    console.error("[claude] FAILED:", errMsg, "status:", errStatus);
-    console.error("[claude] Full error:", err);
-    // Store with fallback values
+    console.error("[email-agent] Claude error:", errMsg);
     claudeResult = {
       classification: "other",
       urgency: "needs_attention",
@@ -285,17 +273,7 @@ ${JSON.stringify(senderContext, null, 2)}`;
     };
   }
 
-  // Detect language for draft
   const draftLanguage = tenant?.language ?? (subject.match(/[àáâãçéêíóôõú]/i) ? "pt" : "en");
-
-  // Log what we're about to save
-  console.log("[claude] Saving to inbox:", {
-    classification: claudeResult.classification,
-    urgency: claudeResult.urgency,
-    confidence: claudeResult.confidence,
-    draft_subject: claudeResult.draft_subject?.substring(0, 80),
-    draft_body: claudeResult.draft_body?.substring(0, 100),
-  });
 
   // --- Store in torrinha_inbox ---
   const { data: inboxRow, error: insertError } = await db

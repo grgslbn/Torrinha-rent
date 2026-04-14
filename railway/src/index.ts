@@ -411,10 +411,10 @@ app.post("/webhooks/email-inbound", async (req, res) => {
       const expected = createHmac("sha256", secret).update(rawBody).digest("hex");
       try {
         if (!timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
-          console.log("[email-inbound] Signature mismatch — proceeding anyway for now");
+          // Signature mismatch — proceed anyway for now
         }
       } catch {
-        console.log("[email-inbound] Signature check error — proceeding anyway for now");
+        // Signature check error — proceed anyway
       }
     }
   }
