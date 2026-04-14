@@ -1,0 +1,32 @@
+name: Update Project Status
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  update-status:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm install @supabase/supabase-js tsx --no-save
+
+      - name: Generate PROJECT_STATUS.md
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: npx tsx scripts/generate-status.ts
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add PROJECT_STATUS.md
+          git diff --staged --quiet || git commit -m "chore: update project status [skip ci]"
+          git push
