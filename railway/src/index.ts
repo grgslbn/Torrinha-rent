@@ -403,9 +403,6 @@ app.post("/cron/escalate-owner", requireCronSecret, async (_req, res) => {
 app.post("/webhooks/email-inbound", async (req, res) => {
   const rawBody = typeof req.body === "string" ? req.body : req.body?.toString("utf-8") ?? "{}";
 
-  // Log the complete raw payload before any processing
-  console.log("RESEND PAYLOAD:", rawBody.slice(0, 5000));
-
   // Verify Resend webhook signature
   const secret = process.env.RESEND_INBOUND_SECRET;
   if (secret) {
@@ -426,14 +423,9 @@ app.post("/webhooks/email-inbound", async (req, res) => {
     const webhook = JSON.parse(rawBody);
 
     // Resend email.received webhook format:
-    // { type: "email.received", data: { email_id, from, to, subject, ... } }
-    // The webhook does NOT include the email body — we must fetch it via API.
+    // { type: "email.received", data: { id, from, to, subject, text, html, ... } }
     const eventType = webhook.type || "";
     const data = webhook.data || webhook;
-
-    console.log("[email-inbound] Event type:", eventType);
-    console.log("[email-inbound] Data keys:", Object.keys(data));
-    console.log("[email-inbound] Full data:", JSON.stringify(data).slice(0, 3000));
 
     if (eventType && eventType !== "email.received") {
       console.log("[email-inbound] Skipping non-inbound event:", eventType);
@@ -441,40 +433,25 @@ app.post("/webhooks/email-inbound", async (req, res) => {
       return;
     }
 
-    const emailId = data.email_id || data.id || "";
-    const fromRaw = data.from || "";
-    const subject = data.subject || "";
-    const messageId = data.message_id || "";
+    // Read fields from data object
+    const fromRaw: string = data.from || "";
+    const subject: string = data.subject || "";
+    const bodyText: string = data.text || data.html || "";
+    const threadId: string = data.threadId || data.thread_id || "";
+    const inReplyTo: string = data.inReplyTo || data.in_reply_to || "";
+    const messageId: string = data.message_id || data.id || "";
 
-    // Parse "Name <email>" format from the from field
+    // Parse "Name <email>" format
     const fromMatch = fromRaw.match(/^(.+?)\s*<(.+?)>$/);
     const fromName = fromMatch ? fromMatch[1].trim() : fromRaw;
     const fromEmail = fromMatch ? fromMatch[2].trim() : fromRaw;
 
-    // Fetch the full email body from Resend API
-    let bodyText = "";
-    let inReplyTo = "";
-    if (emailId) {
-      try {
-        const emailRes = await fetch(`https://api.resend.com/emails/receiving/${emailId}`, {
-          headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}` },
-        });
-        if (emailRes.ok) {
-          const fullEmail = await emailRes.json() as Record<string, unknown>;
-          bodyText = (fullEmail.text as string) || (fullEmail.html as string) || "";
-          const headers = fullEmail.headers as Record<string, string> | undefined;
-          inReplyTo = headers?.["in-reply-to"] || (fullEmail.reply_to as string) || "";
-          console.log("[email-inbound] Full email API response keys:", Object.keys(fullEmail));
-          console.log("[email-inbound] Full email API response:", JSON.stringify(fullEmail).slice(0, 2000));
-          console.log("[email-inbound] Fetched full email body, length:", bodyText.length);
-        } else {
-          const errBody = await emailRes.text();
-          console.error("[email-inbound] Failed to fetch email body:", emailRes.status, errBody);
-        }
-      } catch (fetchErr) {
-        console.error("[email-inbound] Error fetching email body:", fetchErr);
-      }
-    }
+    console.log("[email-inbound] Received:", {
+      from: fromEmail,
+      subject,
+      body_length: bodyText.length,
+      thread_id: threadId,
+    });
 
     const payload = {
       from: fromEmail,
@@ -482,18 +459,11 @@ app.post("/webhooks/email-inbound", async (req, res) => {
       to: Array.isArray(data.to) ? data.to[0] : data.to || "",
       subject,
       text: bodyText,
-      html: "",
+      html: data.html || "",
       message_id: messageId,
-      in_reply_to: inReplyTo,
+      in_reply_to: inReplyTo || threadId,
       references: "",
     };
-
-    console.log("[email-inbound] Parsed payload:", {
-      from: payload.from,
-      from_name: payload.from_name,
-      subject: payload.subject,
-      body_length: payload.text.length,
-    });
 
     const result = await processInboundEmail(payload);
     res.json({ ok: true, id: result?.id });
