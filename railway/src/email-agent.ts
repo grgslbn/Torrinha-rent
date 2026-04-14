@@ -302,6 +302,42 @@ ${JSON.stringify(senderContext, null, 2)}`;
     throw insertError;
   }
 
+  // --- Auto-send for high-confidence waitlist enquiries from unknown prospects ---
+  const autoSendEnabled = process.env.AUTO_SEND_WAITLIST === "true";
+  const shouldAutoSend =
+    autoSendEnabled &&
+    claudeResult.classification === "waitlist_enquiry" &&
+    claudeResult.confidence === "high" &&
+    claudeResult.urgency === "normal" &&
+    !tenant &&
+    claudeResult.draft_body;
+
+  if (shouldAutoSend) {
+    try {
+      const { Resend } = await import("resend");
+      const resend = new Resend(process.env.RESEND_API_KEY);
+      const fromAddr = process.env.PARKING_EMAIL || process.env.EMAIL_FROM || "parking@mail.torrinha149.com";
+
+      await resend.emails.send({
+        from: fromAddr,
+        to: fromEmail,
+        cc: "georges.lieben@gmail.com",
+        subject: claudeResult.draft_subject || `Re: ${subject}`,
+        text: claudeResult.draft_body,
+      });
+
+      await db
+        .from("torrinha_inbox")
+        .update({ status: "sent", sent_at: new Date().toISOString() })
+        .eq("id", inboxRow.id);
+
+      console.log(`[email-agent] Auto-sent to ${fromEmail}`);
+    } catch (sendErr) {
+      console.error("[email-agent] Auto-send failed:", sendErr);
+      // Leave as pending for manual review
+    }
+  }
+
   // --- If urgent, email owner immediately ---
   if (claudeResult.urgency === "urgent") {
     const { Resend } = await import("resend");
@@ -318,6 +354,6 @@ ${JSON.stringify(senderContext, null, 2)}`;
     }
   }
 
-  console.log(`[email-agent] Processed: ${fromEmail} → ${claudeResult.classification} (${claudeResult.urgency})`);
+  console.log(`[email-agent] Processed: ${fromEmail} → ${claudeResult.classification} (${claudeResult.urgency})${shouldAutoSend ? " [auto-sent]" : ""}`);
   return inboxRow;
 }
