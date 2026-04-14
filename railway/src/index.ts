@@ -403,8 +403,8 @@ app.post("/cron/escalate-owner", requireCronSecret, async (_req, res) => {
 app.post("/webhooks/email-inbound", async (req, res) => {
   const rawBody = typeof req.body === "string" ? req.body : req.body?.toString("utf-8") ?? "{}";
 
-  // Log raw payload for debugging
-  console.log("[email-inbound] Raw webhook payload:", rawBody.slice(0, 2000));
+  // Log the complete raw payload before any processing
+  console.log("RESEND PAYLOAD:", rawBody.slice(0, 5000));
 
   // Verify Resend webhook signature
   const secret = process.env.RESEND_INBOUND_SECRET;
