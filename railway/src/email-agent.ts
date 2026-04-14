@@ -48,26 +48,48 @@ type ClaudeResponse = {
   suggested_action?: string;
 };
 
-// Accept any shape — we extract fields defensively
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function processInboundEmail(payload: any) {
-  // Debug: log exactly what we received
-  console.log("RAW PAYLOAD KEYS:", Object.keys(payload));
-  console.log("RAW PAYLOAD:", JSON.stringify(payload).substring(0, 500));
-
-  // Extract fields — handle both { data: { ... } } and flat shapes
+  // Extract fields — handle both { data: { ... } } wrapper and flat shapes
   const data = payload.data || payload;
   const fromRaw: string = data.from || payload.from || "";
   const subject: string = data.subject || payload.subject || "(no subject)";
-  const bodyText: string = data.text || data.html || data.body || data.plain || payload.text || payload.html || "";
   const threadId: string = data.threadId || data.thread_id || data.in_reply_to || payload.in_reply_to || payload.message_id || "";
+  const emailId: string = data.email_id || data.id || payload.email_id || payload.id || "";
 
   // Parse "Name <email>" format
   const fromMatch = fromRaw.match(/^(.+?)\s*<(.+?)>$/);
   const fromName = fromMatch ? fromMatch[1].trim() : (payload.from_name || fromRaw.split("@")[0]);
   const fromEmail = (fromMatch ? fromMatch[2].trim() : fromRaw).toLowerCase().trim();
 
-  console.log("[email-agent] Extracted:", { fromEmail, fromName, subject, bodyLength: bodyText.length, threadId });
+  // Resend inbound webhooks do NOT include the email body.
+  // Fetch the full email content from the Resend API.
+  let bodyText = "";
+  if (emailId) {
+    try {
+      const emailRes = await fetch(`https://api.resend.com/emails/${emailId}`, {
+        headers: {
+          Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+      });
+      if (emailRes.ok) {
+        const fullEmail = await emailRes.json() as Record<string, unknown>;
+        bodyText = (fullEmail.text as string) || (fullEmail.html as string) || "";
+      } else {
+        console.error("[email-agent] Failed to fetch email from Resend API:", emailRes.status);
+      }
+    } catch (err) {
+      console.error("[email-agent] Error fetching email from Resend API:", err);
+    }
+  }
+
+  // Fallback: try reading body from webhook payload directly (in case Resend changes behaviour)
+  if (!bodyText) {
+    bodyText = data.text || data.html || payload.text || payload.html || "";
+  }
+
+  console.log("[email-agent] Processing:", { fromEmail, subject, bodyLength: bodyText.length });
 
   const db = supabase();
 
