@@ -459,9 +459,10 @@ app.post("/webhooks/email-inbound", async (req, res) => {
           headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}` },
         });
         if (emailRes.ok) {
-          const fullEmail = await emailRes.json();
-          bodyText = fullEmail.text || fullEmail.html || "";
-          inReplyTo = fullEmail.headers?.["in-reply-to"] || fullEmail.reply_to || "";
+          const fullEmail = await emailRes.json() as Record<string, unknown>;
+          bodyText = (fullEmail.text as string) || (fullEmail.html as string) || "";
+          const headers = fullEmail.headers as Record<string, string> | undefined;
+          inReplyTo = headers?.["in-reply-to"] || (fullEmail.reply_to as string) || "";
           console.log("[email-inbound] Fetched full email body, length:", bodyText.length);
         } else {
           console.error("[email-inbound] Failed to fetch email body:", emailRes.status, await emailRes.text());
