@@ -206,7 +206,12 @@ export default function InboxPage() {
                     </span>
                   </div>
                   <p className="text-sm text-gray-600 truncate">{item.subject || "(no subject)"}</p>
-                  <p className="text-xs text-gray-400 truncate mt-0.5">{item.body_text.slice(0, 80)}</p>
+                  <p className="text-xs text-gray-400 truncate mt-0.5">
+                    {!item.draft_body && item.status === "pending" && (
+                      <span className="text-amber-500 mr-1">[Draft pending]</span>
+                    )}
+                    {item.body_text ? item.body_text.slice(0, 80) : "(no body)"}
+                  </p>
                 </button>
               ))}
             </div>
@@ -269,7 +274,7 @@ export default function InboxPage() {
                   <>
                     <p className="text-sm font-medium text-gray-900 mb-1">{editSubject}</p>
                     <pre className="text-sm text-gray-700 whitespace-pre-wrap font-sans bg-blue-50 rounded p-3 max-h-48 overflow-y-auto">
-                      {editBody || "(no draft generated)"}
+                      {editBody || "(No draft generated — Claude may have failed to process this email. Click Edit to write a reply manually.)"}
                     </pre>
                   </>
                 )}

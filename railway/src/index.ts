@@ -433,6 +433,7 @@ app.post("/webhooks/email-inbound", async (req, res) => {
 
     console.log("[email-inbound] Event type:", eventType);
     console.log("[email-inbound] Data keys:", Object.keys(data));
+    console.log("[email-inbound] Full data:", JSON.stringify(data).slice(0, 3000));
 
     if (eventType && eventType !== "email.received") {
       console.log("[email-inbound] Skipping non-inbound event:", eventType);
@@ -463,9 +464,12 @@ app.post("/webhooks/email-inbound", async (req, res) => {
           bodyText = (fullEmail.text as string) || (fullEmail.html as string) || "";
           const headers = fullEmail.headers as Record<string, string> | undefined;
           inReplyTo = headers?.["in-reply-to"] || (fullEmail.reply_to as string) || "";
+          console.log("[email-inbound] Full email API response keys:", Object.keys(fullEmail));
+          console.log("[email-inbound] Full email API response:", JSON.stringify(fullEmail).slice(0, 2000));
           console.log("[email-inbound] Fetched full email body, length:", bodyText.length);
         } else {
-          console.error("[email-inbound] Failed to fetch email body:", emailRes.status, await emailRes.text());
+          const errBody = await emailRes.text();
+          console.error("[email-inbound] Failed to fetch email body:", emailRes.status, errBody);
         }
       } catch (fetchErr) {
         console.error("[email-inbound] Error fetching email body:", fetchErr);
