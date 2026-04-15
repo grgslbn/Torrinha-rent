@@ -492,6 +492,82 @@ app.post("/webhooks/email-inbound", async (req, res) => {
 });
 
 // ============================================================
+// POST /webhooks/email-inbound-postmark — Postmark inbound webhook
+// ============================================================
+
+app.post("/webhooks/email-inbound-postmark", async (req, res) => {
+  const payload = req.body;
+
+  // Validate Postmark inbound token if configured
+  const secret = process.env.POSTMARK_INBOUND_WEBHOOK_SECRET;
+  if (secret) {
+    // Postmark doesn't sign payloads — validation is via the unique
+    // inbound webhook URL token. We check a custom header if set,
+    // or rely on the secret being part of the URL path on Postmark's side.
+    // For extra safety, check x-postmark-token if provided.
+    const token = req.headers["x-postmark-token"] as string | undefined;
+    if (token && token !== secret) {
+      res.status(401).json({ error: "Invalid token" });
+      return;
+    }
+  }
+
+  // Recipient filter — only process emails for torrinha149.com
+  const toRaw: string = payload.To || payload.to || "";
+  const toList = toRaw.split(",").map((s: string) => s.trim());
+  const isForTorrinha = toList.some((addr: string) =>
+    addr.includes("torrinha149.com")
+  );
+
+  if (!isForTorrinha) {
+    console.log("[postmark-inbound] Ignored:", toRaw);
+    res.status(200).json({ ignored: true });
+    return;
+  }
+
+  try {
+    // Postmark provides full email body in TextBody / HtmlBody
+    const fromFull = payload.FromFull || {};
+    const fromEmail: string = fromFull.Email || payload.From || "";
+    const fromName: string = fromFull.Name || fromEmail.split("@")[0];
+    const subject: string = payload.Subject || "";
+    const bodyText: string = payload.TextBody || payload.HtmlBody || "";
+    const messageId: string = payload.MessageID || "";
+
+    // Extract In-Reply-To from headers array
+    const headers: { Name: string; Value: string }[] = payload.Headers || [];
+    const inReplyToHeader = headers.find(
+      (h) => h.Name.toLowerCase() === "in-reply-to"
+    );
+    const inReplyTo: string = inReplyToHeader?.Value || payload.ReplyTo || "";
+
+    console.log("[postmark-inbound] Received:", {
+      from: fromEmail,
+      subject,
+      body_length: bodyText.length,
+    });
+
+    const agentPayload = {
+      from: fromEmail,
+      from_name: fromName,
+      to: toRaw,
+      subject,
+      text: bodyText,
+      html: payload.HtmlBody || "",
+      message_id: messageId,
+      in_reply_to: inReplyTo,
+      references: "",
+    };
+
+    const result = await processInboundEmail(agentPayload);
+    res.json({ ok: true, id: result?.id });
+  } catch (err) {
+    console.error("[postmark-inbound] Error:", err);
+    res.status(500).json({ error: "Processing failed" });
+  }
+});
+
+// ============================================================
 // POST /email/send-reply — send a drafted reply from the inbox
 // ============================================================
 
