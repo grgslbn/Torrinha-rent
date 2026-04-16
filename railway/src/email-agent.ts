@@ -3,18 +3,39 @@ import Anthropic from "@anthropic-ai/sdk";
 
 // --- Parking info (update here when pricing or conditions change) ---
 
-const PARKING_INFO = {
-  location: "Rua da Torrinha 149, Porto",
-  description: "Private, covered, numbered parking spots",
-  price: "€120/month per car",
-  remote_deposit: "€50 deposit for remote control access to garage",
-  access: "Available 24/7, exclusive access for tenants only",
-  official: "Official and insured spots",
-  terms: "Long-term rental only — 30 days notice required from both parties",
-  payment_methods: "MBWay or monthly bank transfer (IBAN)",
-  current_availability: "All spots are currently occupied — prospects should join the waiting list",
-  waitlist_url: "https://torrinha149.com",
-};
+function buildParkingInfo(availabilityStatus: string): string {
+  return `
+PARKING DETAILS — Torrinha 149, Porto
+
+Location: Rua da Torrinha 149, Porto (Bonfim neighbourhood)
+Type: Private, covered, numbered underground parking
+Vehicle types accepted: Cars, motorbikes, and bicycles
+Availability: ${availabilityStatus}
+
+Pricing:
+- Car: €120/month
+- Motorbike: lower price, discuss case by case
+- Bicycle: lower price, discuss case by case
+- Remote control deposit: €50 (refundable on departure)
+
+Rental terms:
+- Long-term only — no short-term or temporary rentals
+- 30 days notice required from both parties to end contract
+- Payment monthly in advance via MBWay or bank transfer (IBAN)
+
+Community:
+- Small, friendly community — most tenants are friends-of-friends
+- We value good neighbours — mention this warmly, never as a barrier
+
+Waitlist:
+- If no spots available, invite them to join: https://torrinha149.com
+- Collect via conversation: name, email, phone, vehicle type, preferred start date
+- Once all collected, add to torrinha_waitlist automatically
+
+Tone: Very warm and friendly, like a helpful neighbour. Never corporate.
+Sign off: Dulcineia & Georges
+`.trim();
+}
 
 function supabase() {
   return createClient(
@@ -38,6 +59,14 @@ function prevMonths(count: number): string[] {
   return result;
 }
 
+type WaitlistAction = {
+  type: "add_to_waitlist";
+  name?: string;
+  phone?: string;
+  vehicle_type?: string;
+  preferred_start?: string;
+};
+
 type ClaudeResponse = {
   classification: string;
   urgency: string;
@@ -46,6 +75,7 @@ type ClaudeResponse = {
   draft_subject: string;
   draft_body: string;
   suggested_action?: string;
+  action?: WaitlistAction;
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -127,15 +157,6 @@ export async function processInboundEmail(payload: any) {
       last_3_months: historyPayments ?? [],
     };
   } else {
-    // Count available spots
-    const { data: vacantSpots } = await db
-      .from("torrinha_spots")
-      .select("id")
-      .is("tenant_id", null);
-    const available = (vacantSpots ?? []).filter(
-      (s) => !(s as Record<string, unknown>).label || (s as Record<string, unknown>).label !== "Owner"
-    ).length;
-
     senderContext = {
       type: waitlistStatus ? "waitlist" : "unknown",
       tenant_name: null,
@@ -147,9 +168,35 @@ export async function processInboundEmail(payload: any) {
       last_3_months: null,
       waitlist_status: waitlistStatus,
     };
+  }
 
-    // Add parking info for prospects
-    (senderContext as Record<string, unknown>).parking_info = PARKING_INFO;
+  // --- Live availability check (for prospect enquiries) ---
+  const { data: allSpots } = await db
+    .from("torrinha_spots")
+    .select("id, number, label, tenant_id")
+    .is("tenant_id", null);
+
+  const vacantCount = (allSpots ?? []).filter(
+    (s) => (s as { label: string | null }).label !== "Owner"
+  ).length;
+
+  const availabilityStatus =
+    vacantCount === 0
+      ? "All spots currently occupied — waitlist only"
+      : `${vacantCount} spot(s) currently available`;
+
+  const parkingInfoText = buildParkingInfo(availabilityStatus);
+
+  // --- Fetch thread history for multi-turn context ---
+  let threadHistory: { from_email: string; body_text: string; draft_body: string | null; received_at: string }[] = [];
+  if (threadId) {
+    const { data: historyRows } = await db
+      .from("torrinha_inbox")
+      .select("from_email, body_text, draft_body, received_at")
+      .eq("thread_id", threadId)
+      .order("received_at", { ascending: true })
+      .limit(10);
+    threadHistory = (historyRows ?? []) as typeof threadHistory;
   }
 
   // --- Call Claude ---
@@ -185,16 +232,7 @@ Classification logic:
   → classify as complaint
 - Otherwise → classify as other
 
-PARKING INFO (use when replying to waitlist_enquiry):
-- Private, covered, numbered parking spots at Rua da Torrinha 149, Porto
-- Price: €120/month per car
-- Remote control access to garage (€50 deposit)
-- Available 24/7, exclusive access for tenants only
-- Official and insured spots
-- Long-term rental only — 30 days notice required from both parties
-- Payment via MBWay or monthly bank transfer (IBAN)
-- Currently all spots are currently occupied
-- Waiting list: https://torrinha149.com
+${parkingInfoText}
 
 Urgency options:
   normal           — standard reply, no rush
@@ -207,15 +245,26 @@ Never be cold or corporate. Sign off as 'Dulcineia & Georges'.
 Language: reply in the tenant's preferred language (pt or en).
 If sender is unknown, guess language from subject line. If ambiguous, use Portuguese.
 
-When replying to a waitlist enquiry or pricing question:
-- Share the parking info warmly and concisely
-- Mention that all spots are currently occupied
-- Invite them to join the waiting list at https://torrinha149.com
-- If they are already on the waiting list, acknowledge it and thank them
+When a prospect asks about parking and spots are UNAVAILABLE:
+- Share the parking info warmly (use the PARKING DETAILS block above)
+- Invite them to the waitlist at https://torrinha149.com
+- If they express interest, collect missing info conversationally across the
+  email thread: name, phone, vehicle type (car/motorbike/bicycle), preferred
+  start date. Ask for whatever is still missing — don't demand it all at once.
+- Once you have all required fields (name, phone, vehicle type, start date),
+  include a waitlist action in your response (see JSON format below) and
+  confirm warmly that they've been added.
+
+When spots ARE available:
+- Share the parking info warmly
+- Invite them to contact directly to arrange a visit
+- Collect their details for follow-up: name, phone, vehicle type, preferred start date
 
 When replying to a known tenant about payments:
 - Check their payment context and reply with their current status
 - Be specific: mention the month, amount, and whether it's paid/pending/overdue
+
+Always reply in the language the person wrote in (PT or EN). If ambiguous, use Portuguese.
 
 Return ONLY valid JSON with EXACTLY these top-level keys — no nesting, no "reply" wrapper:
 {
@@ -224,11 +273,29 @@ Return ONLY valid JSON with EXACTLY these top-level keys — no nesting, no "rep
   "confidence": "high",
   "reasoning": "Short explanation of your draft",
   "draft_subject": "Re: Parking",
-  "draft_body": "The full email reply text here, signed off"
+  "draft_body": "The full email reply text here, signed off",
+  "action": {"type": "add_to_waitlist", "name": "...", "phone": "...", "vehicle_type": "car|motorbike|bicycle", "preferred_start": "..."}
 }
 
-Do NOT nest the reply inside a "reply" object. All six keys must be at the top level.
+The "action" key is OPTIONAL — include it ONLY when you have ALL of name,
+phone, vehicle_type, and preferred_start from the prospect (across the thread).
+Omit "action" entirely otherwise.
+
+Do NOT nest the reply inside a "reply" object. All keys must be at the top level.
 No prose, no markdown — ONLY the JSON object.`;
+
+  // Build conversation history for multi-turn context
+  const historyBlock =
+    threadHistory.length > 0
+      ? `\n\nConversation history (this thread, oldest first):\n${threadHistory
+          .map((h, i) => {
+            const isUs = h.from_email.includes("torrinha149.com") || !!h.draft_body;
+            const speaker = isUs ? "Us (previous reply)" : `Prospect <${h.from_email}>`;
+            const text = isUs ? h.draft_body || "" : h.body_text || "";
+            return `--- [${i + 1}] ${speaker} @ ${h.received_at} ---\n${text}`;
+          })
+          .join("\n\n")}`
+      : "";
 
   const userPrompt = `Inbound email:
 From: ${fromName} <${fromEmail}>
@@ -236,7 +303,7 @@ Subject: ${subject}
 Body: ${bodyText || "(not available — classify based on subject and sender context)"}
 
 Sender context:
-${JSON.stringify(senderContext, null, 2)}`;
+${JSON.stringify(senderContext, null, 2)}${historyBlock}`;
 
   let claudeResult: ClaudeResponse;
 
@@ -262,6 +329,7 @@ ${JSON.stringify(senderContext, null, 2)}`;
       draft_subject: parsed.draft_subject || reply.subject || `Re: ${subject}`,
       draft_body: parsed.draft_body || reply.body || parsed.body || parsed.message || "",
       suggested_action: parsed.suggested_action || reply.suggested_action,
+      action: parsed.action,
     };
   } catch (err: unknown) {
     const errMsg = err instanceof Error ? err.message : String(err);
@@ -317,6 +385,38 @@ ${JSON.stringify(senderContext, null, 2)}`;
   if (insertError) {
     console.error("[email-agent] Insert error:", insertError);
     throw insertError;
+  }
+
+  // --- Handle Claude-suggested waitlist action ---
+  if (
+    claudeResult.action?.type === "add_to_waitlist" &&
+    !tenant &&
+    !waitlistStatus
+  ) {
+    const action = claudeResult.action;
+    const waitlistName = action.name || fromName;
+    const hasAllFields = !!(action.name && action.phone && action.vehicle_type && action.preferred_start);
+
+    if (hasAllFields) {
+      const { error: waitlistErr } = await db
+        .from("torrinha_waitlist")
+        .insert({
+          name: waitlistName,
+          email: fromEmail,
+          phone: action.phone || null,
+          language: draftLanguage === "pt" ? "pt" : "en",
+          status: "waiting",
+          tc_accepted_at: new Date().toISOString(),
+        });
+
+      if (waitlistErr) {
+        console.error("[email-agent] Waitlist insert failed:", waitlistErr.message);
+      } else {
+        console.log(`[email-agent] Added to waitlist: ${fromEmail} vehicle=${action.vehicle_type} start=${action.preferred_start}`);
+      }
+    } else {
+      console.log("[email-agent] Skipped waitlist add — incomplete fields");
+    }
   }
 
   // --- Auto-send for high-confidence waitlist enquiries from unknown prospects ---
