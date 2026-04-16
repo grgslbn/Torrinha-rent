@@ -97,7 +97,41 @@ app.post("/webhooks/zapier", async (req, res) => {
         Number(txn.amount ?? txn.amount_eur ?? txn.attributes?.amount ?? 0)
       );
 
-      if (amount <= 0) continue;
+      const counterpart =
+        txn.counterpartName ??
+        txn.counterparty ??
+        txn.attributes?.counterpartName ??
+        null;
+      const communication =
+        txn.remittanceInformation ??
+        txn.description ??
+        txn.attributes?.remittanceInformation ??
+        txn.attributes?.description ??
+        null;
+      const executionDate =
+        (txn.valueDate ?? txn.transaction_date ?? txn.attributes?.valueDate ?? "")
+          .split("T")[0] || today();
+      const transactionId =
+        txn.id ?? txn.transaction_id ?? txn.attributes?.id ?? null;
+
+      if (amount <= 0) {
+        // Log skipped debits/zero txns too so we have a full record
+        try {
+          await db.from("torrinha_transaction_log").insert({
+            source: "zapier",
+            transaction_id: transactionId,
+            execution_date: executionDate,
+            amount_eur: amount,
+            counterpart,
+            communication,
+            match_status: "ignored",
+            notes: "Non-credit or zero amount — skipped",
+          });
+        } catch {
+          // table may not exist yet
+        }
+        continue;
+      }
 
       // Try to match: amount == tenant.rent_eur (exact) or within €1
       const matchIdx = pending.findIndex((p) => {
@@ -144,27 +178,48 @@ app.post("/webhooks/zapier", async (req, res) => {
           .update({ thankyou_sent_at: new Date().toISOString() })
           .eq("id", match.id);
 
+        // Log the matched transaction
+        try {
+          await db.from("torrinha_transaction_log").insert({
+            source: "zapier",
+            transaction_id: transactionId,
+            execution_date: executionDate,
+            amount_eur: amount,
+            counterpart,
+            communication,
+            match_status: "auto_matched",
+            matched_tenant_id: tenant.id,
+            matched_month: match.month,
+          });
+        } catch (e) {
+          console.error("[log] insert failed:", e);
+        }
+
         matched++;
       } else {
         // Store as unmatched for review
         await db.from("torrinha_unmatched_transactions").insert({
           raw_data: txn,
           amount_eur: amount,
-          counterparty:
-            txn.counterpartName ??
-            txn.counterparty ??
-            txn.attributes?.counterpartName ??
-            null,
-          description:
-            txn.remittanceInformation ??
-            txn.description ??
-            txn.attributes?.remittanceInformation ??
-            txn.attributes?.description ??
-            null,
-          transaction_date:
-            (txn.valueDate ?? txn.transaction_date ?? txn.attributes?.valueDate ?? "")
-              .split("T")[0] || today(),
+          counterparty: counterpart,
+          description: communication,
+          transaction_date: executionDate,
         });
+
+        // Log unmatched transaction
+        try {
+          await db.from("torrinha_transaction_log").insert({
+            source: "zapier",
+            transaction_id: transactionId,
+            execution_date: executionDate,
+            amount_eur: amount,
+            counterpart,
+            communication,
+            match_status: "unmatched",
+          });
+        } catch (e) {
+          console.error("[log] insert failed:", e);
+        }
 
         unmatched++;
       }

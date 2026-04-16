@@ -43,5 +43,20 @@ export async function POST(request: NextRequest) {
   if (error)
     return NextResponse.json({ error: error.message }, { status: 500 });
 
+  // Log manual mark-paid to bank transaction log
+  try {
+    await supabase.from("torrinha_transaction_log").insert({
+      source: "manual",
+      execution_date: today,
+      amount_eur: amount,
+      match_status: "manual",
+      matched_tenant_id: payment.tenant_id,
+      matched_month: payment.month,
+      notes: "Manually marked paid via admin",
+    });
+  } catch {
+    // Log table may not exist yet
+  }
+
   return NextResponse.json(data);
 }

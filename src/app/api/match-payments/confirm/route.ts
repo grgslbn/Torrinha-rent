@@ -28,15 +28,23 @@ export async function POST(request: NextRequest) {
     const isCsvImport = !transaction_id || transaction_id.startsWith("csv-");
     const matchedBy = isCsvImport ? "csv_import" : "claude_ai";
 
-    // Get transaction amount from DB (only for DB-sourced transactions)
+    // Get transaction details (amount, counterpart, date) from DB or the match payload
     let txnAmount: number | null = null;
+    let txnCounterpart: string | null = match.counterpart ?? null;
+    let txnDescription: string | null = match.description ?? null;
+    let txnDate: string | null = match.date ?? null;
     if (!isCsvImport && transaction_id) {
       const { data: txn } = await supabase
         .from("torrinha_unmatched_transactions")
-        .select("amount_eur")
+        .select("amount_eur, counterparty, description, transaction_date")
         .eq("id", transaction_id)
         .single();
       txnAmount = txn?.amount_eur ?? null;
+      txnCounterpart = txnCounterpart ?? txn?.counterparty ?? null;
+      txnDescription = txnDescription ?? txn?.description ?? null;
+      txnDate = txnDate ?? txn?.transaction_date ?? null;
+    } else if (isCsvImport && match.amount !== undefined) {
+      txnAmount = Number(match.amount);
     }
 
     // Update payment as paid
@@ -93,6 +101,29 @@ export async function POST(request: NextRequest) {
           .from("torrinha_payments")
           .update({ thankyou_sent_at: new Date().toISOString() })
           .eq("id", payment_id);
+      }
+    }
+
+    // Log transaction match to the bank log
+    if (payment) {
+      const p = payment as { id: string; month: string; amount_eur: number | null; torrinha_tenants: unknown };
+      const tenantRaw = p.torrinha_tenants;
+      const tenantForLog = (Array.isArray(tenantRaw) ? tenantRaw[0] : tenantRaw) as { id?: string } | null;
+
+      try {
+        await supabase.from("torrinha_transaction_log").insert({
+          source: isCsvImport ? "csv_import" : "manual",
+          transaction_id: transaction_id ?? null,
+          execution_date: txnDate,
+          amount_eur: txnAmount,
+          counterpart: txnCounterpart,
+          communication: txnDescription,
+          match_status: "ai_matched",
+          matched_tenant_id: tenantForLog?.id ?? null,
+          matched_month: p.month,
+        });
+      } catch {
+        // Log table may not exist yet — fail quietly
       }
     }
 
