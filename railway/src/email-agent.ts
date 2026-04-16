@@ -59,8 +59,7 @@ function prevMonths(count: number): string[] {
   return result;
 }
 
-type WaitlistAction = {
-  type: "add_to_waitlist";
+type WaitlistFields = {
   name?: string;
   phone?: string;
   vehicle_type?: string;
@@ -75,7 +74,10 @@ type ClaudeResponse = {
   draft_subject: string;
   draft_body: string;
   suggested_action?: string;
-  action?: WaitlistAction;
+  // Action may be a string ("add_to_waitlist") with sibling fields,
+  // or a nested object { type, name, phone, ... } — handle both
+  action?: string;
+  waitlistFields?: WaitlistFields;
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -245,28 +247,24 @@ Never be cold or corporate. Sign off as 'Dulcineia & Georges'.
 Language: reply in the tenant's preferred language (pt or en).
 If sender is unknown, guess language from subject line. If ambiguous, use Portuguese.
 
-When a prospect asks about parking and spots are UNAVAILABLE:
-- Share the parking info warmly (use the PARKING DETAILS block above)
-- Invite them to the waitlist at https://torrinha149.com
-- If they express interest, collect missing info conversationally across the
-  email thread: name, phone, vehicle type (car/motorbike/bicycle), preferred
-  start date. Ask for whatever is still missing — don't demand it all at once.
-- Once you have all required fields (name, phone, vehicle type, start date),
-  include a waitlist action in your response (see JSON format below) and
-  confirm warmly that they've been added.
+TENANT EMAILS:
+- You have full context about the tenant — use it
+- Reference their specific spot, rent amount, payment status
+- For departure notices: confirm process, mention remote return and deposit refund
+- For payment queries: check their actual status and respond accurately
+- Always reply in their language preference
 
-When spots ARE available:
-- Share the parking info warmly
-- Invite them to contact directly to arrange a visit
-- Collect their details for follow-up: name, phone, vehicle type, preferred start date
+PROSPECT EMAILS:
+- Share parking info warmly, like a friendly neighbour
+- Reply in whatever language they wrote in
+- If spots available: invite them to contact directly to arrange a visit
+- If waitlist only: collect name, phone, vehicle type, preferred start date conversationally (one or two at a time across the thread — don't demand it all at once)
+- Once all four fields are collected, include the add_to_waitlist JSON action
+- Mention it's a small friendly community
 
-When replying to a known tenant about payments:
-- Check their payment context and reply with their current status
-- Be specific: mention the month, amount, and whether it's paid/pending/overdue
+TONE: Very warm, like a helpful neighbour. Never corporate. Sign off: Dulcineia & Georges
 
-Always reply in the language the person wrote in (PT or EN). If ambiguous, use Portuguese.
-
-Return ONLY valid JSON with EXACTLY these top-level keys — no nesting, no "reply" wrapper:
+Return ONLY valid JSON with these top-level keys — no nesting, no "reply" wrapper:
 {
   "classification": "waitlist_enquiry",
   "urgency": "normal",
@@ -274,8 +272,16 @@ Return ONLY valid JSON with EXACTLY these top-level keys — no nesting, no "rep
   "reasoning": "Short explanation of your draft",
   "draft_subject": "Re: Parking",
   "draft_body": "The full email reply text here, signed off",
-  "action": {"type": "add_to_waitlist", "name": "...", "phone": "...", "vehicle_type": "car|motorbike|bicycle", "preferred_start": "..."}
+  "action": "add_to_waitlist",
+  "name": "...",
+  "phone": "...",
+  "vehicle_type": "car|motorbike|bicycle",
+  "preferred_start": "..."
 }
+
+The "action" field and its siblings (name, phone, vehicle_type, preferred_start)
+are OPTIONAL — include them ONLY when you have ALL four prospect details
+collected across the thread. Omit them otherwise.
 
 The "action" key is OPTIONAL — include it ONLY when you have ALL of name,
 phone, vehicle_type, and preferred_start from the prospect (across the thread).
@@ -321,6 +327,28 @@ ${JSON.stringify(senderContext, null, 2)}${historyBlock}`;
 
     // Handle both flat and nested structures
     const reply = parsed.reply || {};
+
+    // Extract action (supports both flat string form and nested object form)
+    let actionStr: string | undefined;
+    let waitlistFields: WaitlistFields | undefined;
+    if (typeof parsed.action === "string") {
+      actionStr = parsed.action;
+      waitlistFields = {
+        name: parsed.name,
+        phone: parsed.phone,
+        vehicle_type: parsed.vehicle_type,
+        preferred_start: parsed.preferred_start,
+      };
+    } else if (parsed.action && typeof parsed.action === "object") {
+      actionStr = parsed.action.type;
+      waitlistFields = {
+        name: parsed.action.name,
+        phone: parsed.action.phone,
+        vehicle_type: parsed.action.vehicle_type,
+        preferred_start: parsed.action.preferred_start,
+      };
+    }
+
     claudeResult = {
       classification: parsed.classification || parsed.type || "other",
       urgency: parsed.urgency || reply.urgency || "normal",
@@ -329,7 +357,8 @@ ${JSON.stringify(senderContext, null, 2)}${historyBlock}`;
       draft_subject: parsed.draft_subject || reply.subject || `Re: ${subject}`,
       draft_body: parsed.draft_body || reply.body || parsed.body || parsed.message || "",
       suggested_action: parsed.suggested_action || reply.suggested_action,
-      action: parsed.action,
+      action: actionStr,
+      waitlistFields,
     };
   } catch (err: unknown) {
     const errMsg = err instanceof Error ? err.message : String(err);
@@ -389,30 +418,43 @@ ${JSON.stringify(senderContext, null, 2)}${historyBlock}`;
 
   // --- Handle Claude-suggested waitlist action ---
   if (
-    claudeResult.action?.type === "add_to_waitlist" &&
+    claudeResult.action === "add_to_waitlist" &&
     !tenant &&
     !waitlistStatus
   ) {
-    const action = claudeResult.action;
-    const waitlistName = action.name || fromName;
-    const hasAllFields = !!(action.name && action.phone && action.vehicle_type && action.preferred_start);
+    const fields = claudeResult.waitlistFields || {};
+    const hasAllFields = !!(fields.name && fields.phone && fields.vehicle_type && fields.preferred_start);
 
     if (hasAllFields) {
-      const { error: waitlistErr } = await db
+      const notes = `Vehicle: ${fields.vehicle_type || "unknown"}. Preferred start: ${fields.preferred_start || "flexible"}. Added by email agent.`;
+
+      const insertPayload: Record<string, unknown> = {
+        name: fields.name || fromName,
+        email: fromEmail,
+        phone: fields.phone || null,
+        language: draftLanguage === "pt" ? "pt" : "en",
+        status: "waiting",
+        tc_accepted_at: new Date().toISOString(),
+        notes,
+      };
+
+      let { error: waitlistErr } = await db
         .from("torrinha_waitlist")
-        .insert({
-          name: waitlistName,
-          email: fromEmail,
-          phone: action.phone || null,
-          language: draftLanguage === "pt" ? "pt" : "en",
-          status: "waiting",
-          tc_accepted_at: new Date().toISOString(),
-        });
+        .insert(insertPayload);
+
+      // If `notes` column doesn't exist, retry without it
+      if (waitlistErr && waitlistErr.message?.toLowerCase().includes("notes")) {
+        console.warn("[email-agent] notes column missing — retrying without it");
+        delete insertPayload.notes;
+        ({ error: waitlistErr } = await db
+          .from("torrinha_waitlist")
+          .insert(insertPayload));
+      }
 
       if (waitlistErr) {
         console.error("[email-agent] Waitlist insert failed:", waitlistErr.message);
       } else {
-        console.log(`[email-agent] Added to waitlist: ${fromEmail} vehicle=${action.vehicle_type} start=${action.preferred_start}`);
+        console.log(`[email-agent] Added to waitlist: ${fromEmail}`);
       }
     } else {
       console.log("[email-agent] Skipped waitlist add — incomplete fields");
@@ -457,19 +499,12 @@ ${JSON.stringify(senderContext, null, 2)}${historyBlock}`;
           from: fromAddr,
           to: ownerEmail,
           subject: `[Torrinha] Auto-replied to: ${subject}`,
-          text: `An auto-reply was sent to ${fromName} <${fromEmail}>.
+          text: `Claude automatically replied to ${fromEmail}
 
-Original subject: ${subject}
-Classification: ${claudeResult.classification} · Confidence: ${claudeResult.confidence}
+Classification: ${claudeResult.classification}
 
---- Draft sent ---
-To: ${fromEmail}
-Subject: ${claudeResult.draft_subject}
-
-${claudeResult.draft_body}
-
----
-Inbox: https://torrinha149.com/admin/inbox`,
+Reply sent:
+${claudeResult.draft_body}`,
         }).catch((e) => console.error("[email-agent] Owner auto-send copy failed:", e));
       }
     } catch (sendErr) {
@@ -478,27 +513,22 @@ Inbox: https://torrinha149.com/admin/inbox`,
     }
   }
 
-  // --- Inbox alert: notify owner about EVERY new email ---
-  // (skipped if auto-sent above — already notified with the fuller auto-reply copy)
+  // --- Inbox alert: notify owner about EVERY new email (skipped if auto-sent) ---
   if (ownerEmail && !shouldAutoSend) {
-    const alertSubjectPrefix =
-      claudeResult.urgency === "urgent" ? "[URGENT] " : "[Torrinha Inbox] New: ";
+    const urgencyEmoji =
+      claudeResult.urgency === "urgent"
+        ? "🚨"
+        : claudeResult.urgency === "needs_attention"
+          ? "⚠️"
+          : "📬";
     await resend.emails.send({
       from: fromAddr,
       to: ownerEmail,
-      subject: `${alertSubjectPrefix}${subject}`,
-      text: `New email in the Torrinha inbox.
+      subject: `[Torrinha Inbox] ${urgencyEmoji} ${subject}`,
+      text: `New email from ${fromName || fromEmail}
+Classification: ${claudeResult.classification} | Confidence: ${claudeResult.confidence} | Urgency: ${claudeResult.urgency}
 
-From: ${fromName} <${fromEmail}>
-Subject: ${subject}
-Classification: ${claudeResult.classification}
-Urgency: ${claudeResult.urgency}
-Confidence: ${claudeResult.confidence}
-
-${bodyText ? `--- Message ---\n${bodyText}\n\n` : ""}Reasoning: ${claudeResult.reasoning}
-
-Review and send/edit/dismiss the draft here:
-https://torrinha149.com/admin/inbox`,
+Review and reply: https://torrinha149.com/admin/inbox`,
     }).catch((e) => console.error("[email-agent] Owner inbox alert failed:", e));
   }
 
