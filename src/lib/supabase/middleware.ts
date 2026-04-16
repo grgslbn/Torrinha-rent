@@ -34,7 +34,8 @@ export async function updateSession(request: NextRequest) {
     request.nextUrl.pathname === "/" ||
     request.nextUrl.pathname === "/login" ||
     request.nextUrl.pathname.startsWith("/api/waitlist") ||
-    request.nextUrl.pathname.startsWith("/api/webhooks/");
+    request.nextUrl.pathname.startsWith("/api/webhooks/") ||
+    request.nextUrl.pathname.startsWith("/tenant/");
 
   if (!user && !isPublicRoute) {
     const url = request.nextUrl.clone();

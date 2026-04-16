@@ -20,6 +20,7 @@ type Tenant = {
   start_date: string;
   notes: string | null;
   active: boolean;
+  access_token: string | null;
   torrinha_spots: { id: string; number: number; label: string | null }[];
   torrinha_remotes: Remote[];
 };
@@ -275,6 +276,9 @@ export default function TenantsClient() {
               <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                 Notes
               </th>
+              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                Portal
+              </th>
               <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase w-20"></th>
             </tr>
           </thead>
@@ -323,6 +327,9 @@ export default function TenantsClient() {
                     {renderEditableCell(t, "notes", t.notes || "")}
                   </td>
                   <td className="px-3 py-3 text-sm">
+                    <PortalLinkCell token={t.access_token} />
+                  </td>
+                  <td className="px-3 py-3 text-sm">
                     <button
                       onClick={() => setDeactivating(t)}
                       className="text-red-500 hover:text-red-700 text-xs"
@@ -335,7 +342,7 @@ export default function TenantsClient() {
             ) : (
               <tr>
                 <td
-                  colSpan={11}
+                  colSpan={12}
                   className="px-4 py-8 text-center text-sm text-gray-500"
                 >
                   No active tenants. Click &quot;Add Tenant&quot; to get started.
@@ -695,6 +702,52 @@ function DeactivateModal({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// --- Portal link copy-to-clipboard cell ---
+function PortalLinkCell({ token }: { token: string | null }) {
+  const [copied, setCopied] = useState(false);
+
+  if (!token) {
+    return <span className="text-xs text-gray-300">—</span>;
+  }
+
+  const url =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/tenant/${token}`
+      : `/tenant/${token}`;
+  const shortToken = `${token.slice(0, 6)}…${token.slice(-4)}`;
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // clipboard may not be available (e.g. non-HTTPS) — fall back silently
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-1">
+      <a
+        href={`/tenant/${token}`}
+        target="_blank"
+        rel="noreferrer"
+        className="text-xs text-blue-600 hover:underline font-mono"
+        title={url}
+      >
+        {shortToken}
+      </a>
+      <button
+        onClick={handleCopy}
+        className="text-xs text-gray-400 hover:text-gray-700 px-1 rounded"
+        title="Copy portal URL"
+      >
+        {copied ? "✓" : "📋"}
+      </button>
     </div>
   );
 }
