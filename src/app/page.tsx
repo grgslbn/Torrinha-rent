@@ -7,7 +7,8 @@ export default function WaitlistPublicPage() {
   const tcTextEn =
     process.env.WAITLIST_TC_TEXT_EN ||
     "By submitting this form, you agree to be contacted about parking spot availability at Rua da Torrinha, Porto. Your personal data will be processed in accordance with GDPR and used solely for this purpose.";
-  const contactEmail = process.env.OWNER_EMAIL || "";
+  // Public-facing contact email — always the parking address
+  const contactEmail = "parking@mail.torrinha149.com";
 
   return (
     <WaitlistForm

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import RetroBackground from "./retro-background";
 
 type Props = {
   tcTextPt: string;
@@ -48,8 +49,9 @@ export default function WaitlistForm({
 
   if (submitted) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-        <div className="max-w-md text-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 relative">
+        <RetroBackground />
+        <div className="max-w-md text-center relative z-10">
           <div className="mb-4 text-4xl">&#10003;</div>
           <h1 className="text-2xl font-bold text-gray-900 mb-3">
             {isPt ? "Obrigado!" : "Thank you!"}
@@ -76,8 +78,9 @@ export default function WaitlistForm({
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-      <div className="w-full max-w-md">
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 relative">
+      <RetroBackground />
+      <div className="w-full max-w-md relative z-10">
         {/* Language toggle — top right */}
         <div className="flex justify-end mb-4">
           <div className="flex rounded overflow-hidden border border-gray-300 text-xs">
@@ -109,8 +112,8 @@ export default function WaitlistForm({
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-gray-900">
             {isPt
-              ? "Estacionamento Rua da Torrinha"
-              : "Rua da Torrinha Parking"}
+              ? "Estacionamento Rua da Torrinha 149"
+              : "Rua da Torrinha 149 Parking"}
           </h1>
           <p className="text-gray-500 mt-1">Porto</p>
         </div>
