@@ -429,12 +429,13 @@ ${JSON.stringify(senderContext, null, 2)}${historyBlock}`;
     !tenant &&
     claudeResult.draft_body;
 
+  const { Resend } = await import("resend");
+  const resend = new Resend(process.env.RESEND_API_KEY);
+  const fromAddr = process.env.PARKING_EMAIL || process.env.EMAIL_FROM || "parking@mail.torrinha149.com";
+  const ownerEmail = process.env.OWNER_EMAIL;
+
   if (shouldAutoSend) {
     try {
-      const { Resend } = await import("resend");
-      const resend = new Resend(process.env.RESEND_API_KEY);
-      const fromAddr = process.env.PARKING_EMAIL || process.env.EMAIL_FROM || "parking@mail.torrinha149.com";
-
       await resend.emails.send({
         from: fromAddr,
         to: fromEmail,
@@ -449,26 +450,56 @@ ${JSON.stringify(senderContext, null, 2)}${historyBlock}`;
         .eq("id", inboxRow.id);
 
       console.log(`[email-agent] Auto-sent to ${fromEmail}`);
+
+      // Notify owner with a full copy of what was auto-sent
+      if (ownerEmail) {
+        await resend.emails.send({
+          from: fromAddr,
+          to: ownerEmail,
+          subject: `[Torrinha] Auto-replied to: ${subject}`,
+          text: `An auto-reply was sent to ${fromName} <${fromEmail}>.
+
+Original subject: ${subject}
+Classification: ${claudeResult.classification} · Confidence: ${claudeResult.confidence}
+
+--- Draft sent ---
+To: ${fromEmail}
+Subject: ${claudeResult.draft_subject}
+
+${claudeResult.draft_body}
+
+---
+Inbox: https://torrinha149.com/admin/inbox`,
+        }).catch((e) => console.error("[email-agent] Owner auto-send copy failed:", e));
+      }
     } catch (sendErr) {
       console.error("[email-agent] Auto-send failed:", sendErr);
       // Leave as pending for manual review
     }
   }
 
-  // --- If urgent, email owner immediately ---
-  if (claudeResult.urgency === "urgent") {
-    const { Resend } = await import("resend");
-    const resend = new Resend(process.env.RESEND_API_KEY);
-    const ownerEmail = process.env.OWNER_EMAIL;
-    if (ownerEmail) {
-      await resend.emails.send({
-        from: process.env.PARKING_EMAIL || process.env.EMAIL_FROM || "parking@mail.torrinha149.com",
-        to: ownerEmail,
-        cc: "georges.lieben@gmail.com",
-        subject: `[URGENT] Torrinha inbox: ${subject}`,
-        text: `Urgent email from ${fromName} <${fromEmail}>:\n\n${bodyText}\n\n---\nClassification: ${claudeResult.classification}\nReasoning: ${claudeResult.reasoning}`,
-      });
-    }
+  // --- Inbox alert: notify owner about EVERY new email ---
+  // (skipped if auto-sent above — already notified with the fuller auto-reply copy)
+  if (ownerEmail && !shouldAutoSend) {
+    const alertSubjectPrefix =
+      claudeResult.urgency === "urgent" ? "[URGENT] " : "[Torrinha Inbox] New: ";
+    await resend.emails.send({
+      from: fromAddr,
+      to: ownerEmail,
+      subject: `${alertSubjectPrefix}${subject}`,
+      text: `New email in the Torrinha inbox.
+
+From: ${fromName} <${fromEmail}>
+Subject: ${subject}
+Classification: ${claudeResult.classification}
+Urgency: ${claudeResult.urgency}
+Confidence: ${claudeResult.confidence}
+
+${bodyText ? `--- Message ---\n${bodyText}\n\n` : ""}Reasoning: ${claudeResult.reasoning}
+
+Review and send/edit/dismiss the draft here:
+https://torrinha149.com/admin/inbox`,
+    }).catch((e) => console.error("[email-agent] Owner inbox alert failed:", e));
   }
 
   console.log(`[email-agent] Processed: ${fromEmail} → ${claudeResult.classification} (${claudeResult.urgency})${shouldAutoSend ? " [auto-sent]" : ""}`);
