@@ -9,24 +9,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
 
-      - name: Install dependencies
-        run: npm install @supabase/supabase-js tsx --no-save
+      - run: npm install @supabase/supabase-js
 
-      - name: Generate PROJECT_STATUS.md
+      - run: node scripts/generate-status.mjs
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: npx tsx scripts/generate-status.ts
 
-      - name: Commit and push
+      - name: Commit updated status
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add PROJECT_STATUS.md
-          git diff --staged --quiet || git commit -m "chore: update project status [skip ci]"
+          git diff --quiet && git diff --staged --quiet || git commit -am "chore: update PROJECT_STATUS.md [skip ci]"
           git push
