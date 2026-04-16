@@ -2,18 +2,18 @@
 
 <!-- STATUS:START -->
 ## Live status (auto-updated on every push)
-**Last updated:** pending first CI run
+**Last updated:** 2026-04-16 17:50 UTC
 
 | Metric | Value |
 |---|---|
-| Active tenants | — |
-| Current month paid | — |
-| Current month pending | — |
-| Current month overdue | — |
-| Waitlist (waiting) | — |
-| Unmatched transactions | — |
-| Inbox pending | — |
-| Last payment received | — |
+| Active tenants | 13 |
+| Current month paid | 10 |
+| Current month pending | 0 |
+| Current month overdue | 3 |
+| Waitlist (waiting) | 1 |
+| Unmatched transactions | 0 |
+| Inbox pending | 5 |
+| Last payment received | 2026-04-09 |
 <!-- STATUS:END -->
 
 ---
