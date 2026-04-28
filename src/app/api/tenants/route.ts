@@ -18,7 +18,7 @@ export async function GET() {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Attach upcoming (future) assignments for each tenant
+  // Attach assignments that haven't started yet (start_date > today)
   const { data: futureAssignments } = await supabase
     .from("torrinha_spot_assignments")
     .select("tenant_id, spot_id, start_date, end_date, torrinha_spots(id, number, label)")

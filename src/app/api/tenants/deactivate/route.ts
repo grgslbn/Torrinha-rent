@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
         .eq("spot_id", a.spot_id)
         .neq("tenant_id", tenant_id)
         .lte("start_date", today)
-        .or(`end_date.is.null,end_date.gte.${today}`)
+        .or(`end_date.is.null,end_date.gt.${today}`)
         .limit(1)
         .maybeSingle();
 

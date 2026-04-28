@@ -10,7 +10,7 @@ async function syncSpotCache(supabase: Awaited<ReturnType<typeof createClient>>,
     .select("tenant_id")
     .eq("spot_id", spot_id)
     .lte("start_date", today)
-    .or(`end_date.is.null,end_date.gte.${today}`)
+    .or(`end_date.is.null,end_date.gt.${today}`)
     .order("start_date", { ascending: false })
     .limit(1)
     .maybeSingle();

@@ -246,13 +246,14 @@ app.post("/cron/reset-month", requireCronSecret, async (_req, res) => {
     const firstDay = `${month}-01`;
     const lastDay = new Date(year, mo, 0).toISOString().split("T")[0]; // last day of month
 
-    // Get all tenants who have an assignment that overlaps with this month
-    // i.e. start_date <= lastDay AND (end_date IS NULL OR end_date >= firstDay)
+    // Get all tenants who have an assignment that overlaps with this month.
+    // end_date is exclusive, so assignment is active during month if:
+    //   start_date <= lastDay AND (end_date IS NULL OR end_date > firstDay)
     const { data: assignments } = await db
       .from("torrinha_spot_assignments")
       .select("tenant_id, torrinha_tenants(id, rent_eur, status)")
       .lte("start_date", lastDay)
-      .or(`end_date.is.null,end_date.gte.${firstDay}`);
+      .or(`end_date.is.null,end_date.gt.${firstDay}`);
 
     if (!assignments || assignments.length === 0) {
       res.json({ message: "No assignments for this month", created: 0 });
@@ -736,11 +737,12 @@ app.post("/cron/transition-spots", requireCronSecret, async (_req, res) => {
     let deactivated = 0;
 
     // 1. Find future tenants whose assignment start_date <= today → activate
+    // end_date is exclusive: active if end_date IS NULL or end_date > today
     const { data: toActivate } = await db
       .from("torrinha_spot_assignments")
       .select("tenant_id, spot_id, torrinha_tenants(id, status)")
       .lte("start_date", todayStr)
-      .or(`end_date.is.null,end_date.gte.${todayStr}`);
+      .or(`end_date.is.null,end_date.gt.${todayStr}`);
 
     const futureToActivate = (toActivate ?? []).filter((a) => {
       const t = Array.isArray(a.torrinha_tenants) ? a.torrinha_tenants[0] : a.torrinha_tenants;
@@ -767,27 +769,23 @@ app.post("/cron/transition-spots", requireCronSecret, async (_req, res) => {
     }
 
     // 2. Find active tenants whose assignments have all ended → deactivate
-    // An active tenant should be deactivated only if they have NO open or future assignment
-    // AND their last assignment ended before or on today AND they have no unpaid/overdue payments
+    // end_date is exclusive: an assignment ending on today (end_date <= today) is no longer active
     const { data: endedAssignments } = await db
       .from("torrinha_spot_assignments")
       .select("tenant_id, spot_id")
-      .lt("end_date", todayStr);
+      .lte("end_date", todayStr);
 
-    // Collect candidate tenant IDs (those with an ended assignment today)
     const endedTodayTenants = new Set(
-      (endedAssignments ?? [])
-        .filter((a) => a.end_date === todayStr || (a.end_date && a.end_date < todayStr))
-        .map((a) => a.tenant_id)
+      (endedAssignments ?? []).map((a) => a.tenant_id)
     );
 
     for (const tenantId of endedTodayTenants) {
-      // Check if tenant has any active/future assignment remaining
+      // Check if tenant has any assignment still active (NULL end or end_date > today)
       const { data: openAssignments } = await db
         .from("torrinha_spot_assignments")
         .select("id")
         .eq("tenant_id", tenantId)
-        .or(`end_date.is.null,end_date.gte.${todayStr}`)
+        .or(`end_date.is.null,end_date.gt.${todayStr}`)
         .limit(1);
 
       if (openAssignments && openAssignments.length > 0) continue; // still has active spot
