@@ -13,6 +13,7 @@ const navLinks = [
   { href: "/admin/inbox", label: "Inbox" },
   { href: "/admin/bank", label: "Bank" },
   { href: "/admin/emails", label: "Emails" },
+  { href: "/admin/settings", label: "Settings" },
 ];
 
 export default function AdminNav() {

@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { createClient } from "@/lib/supabase/server";
 
 let _resend: Resend | null = null;
 function getResend(): Resend {
@@ -31,6 +32,27 @@ function formatMonth(month: string, lang: string): string {
   ];
   const months = lang === "pt" ? ptMonths : enMonths;
   return `${months[parseInt(m, 10) - 1]} ${y}`;
+}
+
+// --- Owner CC settings (fetched per-request, no cache needed server-side) ---
+
+async function getOwnerCcSettings() {
+  try {
+    const supabase = await createClient();
+    const { data } = await supabase
+      .from("torrinha_settings")
+      .select("key, value")
+      .in("key", ["owner_cc_enabled", "owner_cc_email", "owner_cc_mode"]);
+
+    const map = Object.fromEntries((data ?? []).map((r) => [r.key, r.value]));
+    return {
+      enabled: map.owner_cc_enabled === true,
+      email: typeof map.owner_cc_email === "string" ? map.owner_cc_email : "",
+      mode: map.owner_cc_mode === "cc" ? ("cc" as const) : ("bcc" as const),
+    };
+  } catch {
+    return { enabled: false, email: "", mode: "bcc" as const };
+  }
 }
 
 function currentMonthStr(): string {
@@ -121,11 +143,28 @@ export function generateEmail(
 async function sendEmail(
   to: string,
   subject: string,
-  text: string
+  text: string,
+  extraCc?: string[]
 ): Promise<{ success: boolean; error?: string }> {
   const from = process.env.PARKING_EMAIL || process.env.EMAIL_FROM || "parking@mail.torrinha149.com";
+  const ownerEmail = process.env.OWNER_EMAIL;
+
+  const ccSettings = await getOwnerCcSettings();
+  const isOwnerEmail = ownerEmail && to === ownerEmail;
+  const ccAddresses = [
+    ...(!isOwnerEmail && ccSettings.enabled && ccSettings.email ? [ccSettings.email] : []),
+    ...(extraCc ?? []),
+  ].filter(Boolean);
+
+  const ccPayload =
+    ccAddresses.length > 0
+      ? ccSettings.mode === "cc"
+        ? { cc: ccAddresses }
+        : { bcc: ccAddresses }
+      : {};
+
   try {
-    const { error } = await getResend().emails.send({ from, to, subject, text, cc: "georges.lieben@gmail.com" });
+    const { error } = await getResend().emails.send({ from, to, ...ccPayload, subject, text });
     if (error) {
       console.error("Email send error:", error);
       return { success: false, error: error.message };
@@ -142,22 +181,24 @@ async function sendEmail(
 
 export async function sendThankYouEmail(
   tenant: { name: string; email: string; language: string },
-  payment: { id: string; month: string; amount_eur: number }
+  payment: { id: string; month: string; amount_eur: number },
+  extraCc?: string[]
 ): Promise<{ success: boolean; error?: string }> {
   const { subject, body } = generateEmail("thank-you", tenant.language, {
     tenant_name: tenant.name,
     amount: payment.amount_eur,
     month: payment.month,
   });
-  return sendEmail(tenant.email, subject, body);
+  return sendEmail(tenant.email, subject, body, extraCc);
 }
 
 export async function sendGeneratedEmail(
   to: string,
   template: EmailTemplate,
   language: string,
-  data?: Parameters<typeof generateEmail>[2]
+  data?: Parameters<typeof generateEmail>[2],
+  extraCc?: string[]
 ): Promise<{ success: boolean; error?: string }> {
   const { subject, body } = generateEmail(template, language, data);
-  return sendEmail(to, subject, body);
+  return sendEmail(to, subject, body, extraCc);
 }

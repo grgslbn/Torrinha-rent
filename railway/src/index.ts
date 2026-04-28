@@ -166,10 +166,19 @@ app.post("/webhooks/zapier", async (req, res) => {
         // Remove from list to avoid double-matching
         pending.splice(matchIdx, 1);
 
+        // Fetch tenant contacts who receive emails
+        const { data: contactRows } = await db
+          .from("torrinha_tenant_contacts")
+          .select("email")
+          .eq("tenant_id", tenant.id)
+          .eq("receives_emails", true);
+        const extraCc = (contactRows ?? []).map((c) => c.email).filter(Boolean) as string[];
+
         // Send thank-you email
         await sendThankYouEmail(
           { name: tenant.name, email: tenant.email, language: tenant.language },
-          { month, amount_eur: amount }
+          { month, amount_eur: amount },
+          extraCc
         );
 
         // Update thankyou_sent_at
@@ -364,7 +373,7 @@ app.post("/cron/remind-tenants", requireCronSecret, async (_req, res) => {
     const { data: unpaid } = await db
       .from("torrinha_payments")
       .select(
-        "id, amount_eur, reminder_sent_at, torrinha_tenants(name, email, language, rent_eur)"
+        "id, amount_eur, reminder_sent_at, torrinha_tenants(id, name, email, language, rent_eur)"
       )
       .eq("month", month)
       .in("status", ["pending", "overdue"])
@@ -381,6 +390,7 @@ app.post("/cron/remind-tenants", requireCronSecret, async (_req, res) => {
       const tenant = (Array.isArray(p.torrinha_tenants)
         ? p.torrinha_tenants[0]
         : p.torrinha_tenants) as {
+        id: string;
         name: string;
         email: string;
         language: string;
@@ -389,10 +399,19 @@ app.post("/cron/remind-tenants", requireCronSecret, async (_req, res) => {
 
       if (!tenant) continue;
 
-      const result = await sendReminderEmail(tenant, {
-        month,
-        amount_eur: Number(p.amount_eur ?? tenant.rent_eur),
-      });
+      // Fetch contacts who should receive a copy
+      const { data: contactRows } = await db
+        .from("torrinha_tenant_contacts")
+        .select("email")
+        .eq("tenant_id", tenant.id)
+        .eq("receives_emails", true);
+      const extraCc = (contactRows ?? []).map((c) => c.email).filter(Boolean) as string[];
+
+      const result = await sendReminderEmail(
+        tenant,
+        { month, amount_eur: Number(p.amount_eur ?? tenant.rent_eur) },
+        extraCc
+      );
 
       if (result.success) {
         await db
@@ -666,15 +685,30 @@ app.post("/email/send-reply", requireCronSecret, async (req, res) => {
       return;
     }
 
+    // Fetch owner CC settings
+    const { data: settingsRows } = await db
+      .from("torrinha_settings")
+      .select("key, value")
+      .in("key", ["owner_cc_enabled", "owner_cc_email", "owner_cc_mode"]);
+    const settingsMap = Object.fromEntries((settingsRows ?? []).map((r) => [r.key, r.value]));
+    const ccEnabled = settingsMap.owner_cc_enabled === true;
+    const ccEmail = typeof settingsMap.owner_cc_email === "string" ? settingsMap.owner_cc_email : "";
+    const ccMode = settingsMap.owner_cc_mode === "cc" ? "cc" : "bcc";
+    const replyCcPayload =
+      ccEnabled && ccEmail
+        ? ccMode === "cc"
+          ? { cc: ccEmail }
+          : { bcc: ccEmail }
+        : {};
+
     // Send via Resend
     const { Resend } = await import("resend");
     const resend = new Resend(process.env.RESEND_API_KEY);
-    const fromAddr = process.env.PARKING_EMAIL || process.env.EMAIL_FROM || "parking@mail.torrinha149.com";
 
     const { error: sendError } = await resend.emails.send({
-      from: fromAddr,
+      from: process.env.PARKING_EMAIL || process.env.EMAIL_FROM || "parking@mail.torrinha149.com",
       to: inboxItem.from_email,
-      cc: "georges.lieben@gmail.com",
+      ...replyCcPayload,
       subject: subject || "Re: (no subject)",
       text: replyBody,
     });

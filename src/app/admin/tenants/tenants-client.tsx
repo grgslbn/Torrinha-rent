@@ -27,6 +27,17 @@ type FutureAssignment = {
   torrinha_spots: { id: string; number: number; label: string | null } | null;
 };
 
+type TenantContact = {
+  id: string;
+  tenant_id: string;
+  label: string | null;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  receives_emails: boolean;
+  notes: string | null;
+};
+
 type Tenant = {
   id: string;
   name: string;
@@ -43,6 +54,7 @@ type Tenant = {
   torrinha_spots: { id: string; number: number; label: string | null }[];
   torrinha_remotes: Remote[];
   future_assignments: FutureAssignment[];
+  torrinha_tenant_contacts: TenantContact[];
 };
 
 type EditingCell = { tenantId: string; field: string } | null;
@@ -104,6 +116,7 @@ export default function TenantsClient() {
   const [deactivating, setDeactivating] = useState<Tenant | null>(null);
   const [assigningSpot, setAssigningSpot] = useState<Tenant | null>(null);
   const [error, setError] = useState("");
+  const [expandedContactsId, setExpandedContactsId] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     const [tenantsRes, spotsRes] = await Promise.all([
@@ -238,50 +251,73 @@ export default function TenantsClient() {
     const upcomingLabel = upcomingSpotLabel(t);
     const isInactive = t.status === "inactive";
     const hasNoSpot = t.torrinha_spots.length === 0 && t.future_assignments.length === 0;
+    const contactCount = t.torrinha_tenant_contacts?.length ?? 0;
+    const contactsExpanded = expandedContactsId === t.id;
 
     return (
-      <tr key={t.id} className={`hover:bg-gray-50 ${isInactive ? "opacity-50" : ""}`}>
-        <td className="px-3 py-3 text-sm">
-          <StatusBadge status={t.status} />
-        </td>
-        <td className="px-3 py-3 text-sm text-gray-900 font-medium">
-          {hasNoSpot && !isInactive ? (
-            <div>
-              <span className="text-gray-400 text-xs">No spot</span>
+      <>
+        <tr key={t.id} className={`hover:bg-gray-50 ${isInactive ? "opacity-50" : ""}`}>
+          <td className="px-3 py-3 text-sm">
+            <StatusBadge status={t.status} />
+          </td>
+          <td className="px-3 py-3 text-sm text-gray-900 font-medium">
+            {hasNoSpot && !isInactive ? (
+              <div>
+                <span className="text-gray-400 text-xs">No spot</span>
+                <button
+                  onClick={() => setAssigningSpot(t)}
+                  className="block text-xs text-blue-600 hover:text-blue-800 hover:underline mt-0.5"
+                >
+                  Assign spot →
+                </button>
+              </div>
+            ) : (
+              <div>
+                <div>{spotLabels(t)}</div>
+                {upcomingLabel && (
+                  <div className="text-xs text-blue-600 mt-0.5">→ {upcomingLabel}</div>
+                )}
+              </div>
+            )}
+          </td>
+          <td className="px-3 py-3 text-sm text-gray-900">{renderEditableCell(t, "name", t.name)}</td>
+          <td className="px-3 py-3 text-sm text-gray-500">{renderEditableCell(t, "email", t.email, "email")}</td>
+          <td className="px-3 py-3 text-sm text-gray-500">{renderEditableCell(t, "phone", t.phone || "", "tel")}</td>
+          <td className="px-3 py-3 text-sm text-gray-900">{renderEditableCell(t, "rent_eur", `€${t.rent_eur}`, "number")}</td>
+          <td className="px-3 py-3 text-sm text-gray-500">{renderEditableCell(t, "payment_due_day", String(t.payment_due_day), "number")}</td>
+          <td className="px-3 py-3 text-sm text-gray-500">{renderEditableCell(t, "start_date", t.start_date, "date")}</td>
+          <td className="px-3 py-3 text-sm text-gray-900 text-center">{remoteCount(t)}</td>
+          <td className="px-3 py-3 text-sm text-gray-500 uppercase">{renderEditableCell(t, "language", t.language.toUpperCase())}</td>
+          <td className="px-3 py-3 text-sm text-gray-400 max-w-[120px] truncate">{renderEditableCell(t, "notes", t.notes || "")}</td>
+          <td className="px-3 py-3 text-sm"><PortalLinkCell token={t.access_token} /></td>
+          <td className="px-3 py-3 text-sm">
+            <div className="flex flex-col gap-1 items-start">
               <button
-                onClick={() => setAssigningSpot(t)}
-                className="block text-xs text-blue-600 hover:text-blue-800 hover:underline mt-0.5"
+                onClick={() => setExpandedContactsId(contactsExpanded ? null : t.id)}
+                className="text-xs text-gray-500 hover:text-gray-800"
               >
-                Assign spot →
+                Contacts{contactCount > 0 ? ` (${contactCount})` : " +"}
               </button>
-            </div>
-          ) : (
-            <div>
-              <div>{spotLabels(t)}</div>
-              {upcomingLabel && (
-                <div className="text-xs text-blue-600 mt-0.5">→ {upcomingLabel}</div>
+              {t.status !== "inactive" && (
+                <button onClick={() => setDeactivating(t)} className="text-red-500 hover:text-red-700 text-xs">
+                  Deactivate
+                </button>
               )}
             </div>
-          )}
-        </td>
-        <td className="px-3 py-3 text-sm text-gray-900">{renderEditableCell(t, "name", t.name)}</td>
-        <td className="px-3 py-3 text-sm text-gray-500">{renderEditableCell(t, "email", t.email, "email")}</td>
-        <td className="px-3 py-3 text-sm text-gray-500">{renderEditableCell(t, "phone", t.phone || "", "tel")}</td>
-        <td className="px-3 py-3 text-sm text-gray-900">{renderEditableCell(t, "rent_eur", `€${t.rent_eur}`, "number")}</td>
-        <td className="px-3 py-3 text-sm text-gray-500">{renderEditableCell(t, "payment_due_day", String(t.payment_due_day), "number")}</td>
-        <td className="px-3 py-3 text-sm text-gray-500">{renderEditableCell(t, "start_date", t.start_date, "date")}</td>
-        <td className="px-3 py-3 text-sm text-gray-900 text-center">{remoteCount(t)}</td>
-        <td className="px-3 py-3 text-sm text-gray-500 uppercase">{renderEditableCell(t, "language", t.language.toUpperCase())}</td>
-        <td className="px-3 py-3 text-sm text-gray-400 max-w-[120px] truncate">{renderEditableCell(t, "notes", t.notes || "")}</td>
-        <td className="px-3 py-3 text-sm"><PortalLinkCell token={t.access_token} /></td>
-        <td className="px-3 py-3 text-sm">
-          {t.status !== "inactive" && (
-            <button onClick={() => setDeactivating(t)} className="text-red-500 hover:text-red-700 text-xs">
-              Deactivate
-            </button>
-          )}
-        </td>
-      </tr>
+          </td>
+        </tr>
+        {contactsExpanded && (
+          <tr key={`${t.id}-contacts`}>
+            <td colSpan={13} className="bg-gray-50 px-6 py-3 border-b border-gray-200">
+              <ContactsSubRow
+                tenant={t}
+                onChanged={fetchData}
+                onError={setError}
+              />
+            </td>
+          </tr>
+        )}
+      </>
     );
   }
 
@@ -762,6 +798,147 @@ function DeactivateModal({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// --- Contacts sub-row ---
+function ContactsSubRow({
+  tenant,
+  onChanged,
+  onError,
+}: {
+  tenant: Tenant;
+  onChanged: () => void;
+  onError: (msg: string) => void;
+}) {
+  const contacts = tenant.torrinha_tenant_contacts ?? [];
+  const [showAdd, setShowAdd] = useState(false);
+  const [addForm, setAddForm] = useState({ label: "", name: "", email: "", phone: "", receives_emails: false, notes: "" });
+  const [saving, setSaving] = useState(false);
+
+  function setAdd(field: string, value: string | boolean) {
+    setAddForm((f) => ({ ...f, [field]: value }));
+  }
+
+  async function handleAdd(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    const res = await fetch("/api/tenant-contacts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tenant_id: tenant.id, ...addForm }),
+    });
+    if (res.ok) {
+      setShowAdd(false);
+      setAddForm({ label: "", name: "", email: "", phone: "", receives_emails: false, notes: "" });
+      onChanged();
+    } else {
+      const data = await res.json().catch(() => ({}));
+      onError(data.error || "Failed to add contact");
+    }
+    setSaving(false);
+  }
+
+  async function handleToggleEmails(contact: TenantContact) {
+    await fetch("/api/tenant-contacts", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: contact.id, receives_emails: !contact.receives_emails }),
+    });
+    onChanged();
+  }
+
+  async function handleDelete(id: string) {
+    const res = await fetch(`/api/tenant-contacts?id=${id}`, { method: "DELETE" });
+    if (res.ok) {
+      onChanged();
+    } else {
+      const data = await res.json().catch(() => ({}));
+      onError(data.error || "Failed to delete contact");
+    }
+  }
+
+  return (
+    <div>
+      <p className="text-xs font-medium text-gray-500 mb-2 uppercase tracking-wide">Additional contacts</p>
+      {contacts.length > 0 ? (
+        <table className="text-xs w-full mb-2">
+          <thead>
+            <tr className="text-gray-400">
+              <th className="text-left pb-1 font-medium pr-4">Label</th>
+              <th className="text-left pb-1 font-medium pr-4">Name</th>
+              <th className="text-left pb-1 font-medium pr-4">Email</th>
+              <th className="text-left pb-1 font-medium pr-4">Phone</th>
+              <th className="text-left pb-1 font-medium pr-4">CC emails</th>
+              <th className="text-left pb-1 font-medium pr-4">Notes</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {contacts.map((c) => (
+              <tr key={c.id} className="border-t border-gray-100">
+                <td className="py-1.5 pr-4 text-gray-500">{c.label || "—"}</td>
+                <td className="py-1.5 pr-4 text-gray-900 font-medium">{c.name}</td>
+                <td className="py-1.5 pr-4 text-gray-500">{c.email || "—"}</td>
+                <td className="py-1.5 pr-4 text-gray-500">{c.phone || "—"}</td>
+                <td className="py-1.5 pr-4">
+                  <input
+                    type="checkbox"
+                    checked={c.receives_emails}
+                    onChange={() => handleToggleEmails(c)}
+                    className="accent-blue-600"
+                    title="CC on tenant emails"
+                  />
+                </td>
+                <td className="py-1.5 pr-4 text-gray-400">{c.notes || "—"}</td>
+                <td className="py-1.5">
+                  <button
+                    onClick={() => handleDelete(c.id)}
+                    className="text-red-400 hover:text-red-600"
+                    title="Delete contact"
+                  >
+                    ✕
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <p className="text-xs text-gray-400 mb-2">No contacts yet.</p>
+      )}
+
+      {showAdd ? (
+        <form onSubmit={handleAdd} className="flex flex-wrap items-end gap-2 mt-1">
+          <input placeholder="Label (e.g. spouse)" value={addForm.label} onChange={(e) => setAdd("label", e.target.value)}
+            className="px-2 py-1 border border-gray-300 rounded text-xs w-28" />
+          <input placeholder="Name *" value={addForm.name} onChange={(e) => setAdd("name", e.target.value)} required
+            className="px-2 py-1 border border-gray-300 rounded text-xs w-32" />
+          <input type="email" placeholder="Email" value={addForm.email} onChange={(e) => setAdd("email", e.target.value)}
+            className="px-2 py-1 border border-gray-300 rounded text-xs w-40" />
+          <input type="tel" placeholder="Phone" value={addForm.phone} onChange={(e) => setAdd("phone", e.target.value)}
+            className="px-2 py-1 border border-gray-300 rounded text-xs w-28" />
+          <label className="flex items-center gap-1 text-xs text-gray-600">
+            <input type="checkbox" checked={addForm.receives_emails} onChange={(e) => setAdd("receives_emails", e.target.checked)} className="accent-blue-600" />
+            CC emails
+          </label>
+          <input placeholder="Notes" value={addForm.notes} onChange={(e) => setAdd("notes", e.target.value)}
+            className="px-2 py-1 border border-gray-300 rounded text-xs w-32" />
+          <button type="submit" disabled={saving}
+            className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 disabled:opacity-50">
+            {saving ? "…" : "Add"}
+          </button>
+          <button type="button" onClick={() => setShowAdd(false)}
+            className="px-3 py-1 text-xs text-gray-500 hover:text-gray-700">
+            Cancel
+          </button>
+        </form>
+      ) : (
+        <button onClick={() => setShowAdd(true)} className="text-xs text-blue-600 hover:text-blue-800 hover:underline">
+          + Add contact
+        </button>
+      )}
     </div>
   );
 }

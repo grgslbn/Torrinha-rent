@@ -11,7 +11,7 @@ export async function GET() {
   const { data: tenants, error } = await supabase
     .from("torrinha_tenants")
     .select(
-      "*, torrinha_spots!torrinha_spots_tenant_id_fkey(id, number, label), torrinha_remotes(id, count, deposit_paid, returned_date)"
+      "*, torrinha_spots!torrinha_spots_tenant_id_fkey(id, number, label), torrinha_remotes(id, count, deposit_paid, returned_date), torrinha_tenant_contacts(id, label, name, email, phone, receives_emails, notes)"
     )
     .order("status", { ascending: true }) // active → inactive → upcoming (alphabetical, UI groups them)
     .order("created_at", { ascending: false });

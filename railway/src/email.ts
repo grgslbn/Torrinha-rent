@@ -16,6 +16,37 @@ function supabase() {
   );
 }
 
+// --- Owner CC settings (5-min TTL cache) ---
+
+type CcSettings = { enabled: boolean; email: string; mode: "cc" | "bcc" };
+let _ccSettings: CcSettings | null = null;
+let _ccSettingsFetchedAt = 0;
+const CC_TTL = 5 * 60 * 1000;
+
+async function getOwnerCcSettings(): Promise<CcSettings> {
+  const now = Date.now();
+  if (_ccSettings && now - _ccSettingsFetchedAt < CC_TTL) return _ccSettings;
+
+  try {
+    const { data } = await supabase()
+      .from("torrinha_settings")
+      .select("key, value")
+      .in("key", ["owner_cc_enabled", "owner_cc_email", "owner_cc_mode"]);
+
+    const map = Object.fromEntries((data ?? []).map((r) => [r.key, r.value]));
+    _ccSettings = {
+      enabled: map.owner_cc_enabled === true,
+      email: typeof map.owner_cc_email === "string" ? map.owner_cc_email : "",
+      mode: map.owner_cc_mode === "cc" ? "cc" : "bcc",
+    };
+  } catch {
+    if (!_ccSettings) _ccSettings = { enabled: false, email: "", mode: "bcc" };
+  }
+
+  _ccSettingsFetchedAt = now;
+  return _ccSettings!;
+}
+
 type TenantInfo = {
   name: string;
   email: string;
@@ -73,16 +104,17 @@ function applyPlaceholders(
 async function sendEmail(
   to: string,
   subject: string,
-  text: string
+  text: string,
+  extraCc?: string[]
 ): Promise<{ success: boolean; error?: string }> {
   const from = process.env.PARKING_EMAIL || process.env.EMAIL_FROM || "parking@mail.torrinha149.com";
+  const ownerEmail = process.env.OWNER_EMAIL;
 
   let actualTo = to;
   let actualSubject = subject;
   let actualText = text;
 
   if (isDryRun()) {
-    const ownerEmail = process.env.OWNER_EMAIL;
     if (!ownerEmail) return { success: false, error: "EMAIL_DRY_RUN is true but OWNER_EMAIL not set" };
     actualTo = ownerEmail;
     actualSubject = `[DRY RUN] ${subject}`;
@@ -90,11 +122,26 @@ async function sendEmail(
     console.log(`[dry-run] Redirecting email from ${to} → ${ownerEmail}`);
   }
 
+  const ccSettings = await getOwnerCcSettings();
+  // Skip owner CC when emailing the owner (no self-CC on owner alerts)
+  const isOwnerEmail = ownerEmail && actualTo === ownerEmail;
+  const ccAddresses = [
+    ...(!isOwnerEmail && ccSettings.enabled && ccSettings.email ? [ccSettings.email] : []),
+    ...(extraCc ?? []),
+  ].filter(Boolean);
+
+  const ccPayload =
+    ccAddresses.length > 0
+      ? ccSettings.mode === "cc"
+        ? { cc: ccAddresses }
+        : { bcc: ccAddresses }
+      : {};
+
   try {
     const { error } = await getResend().emails.send({
       from,
       to: actualTo,
-      cc: "georges.lieben@gmail.com",
+      ...ccPayload,
       subject: actualSubject,
       text: actualText,
     });
@@ -114,7 +161,8 @@ async function sendEmail(
 
 export async function sendThankYouEmail(
   tenant: TenantInfo,
-  payment: { month: string; amount_eur: number }
+  payment: { month: string; amount_eur: number },
+  extraCc?: string[]
 ): Promise<{ success: boolean; error?: string }> {
   const isPt = tenant.language === "pt";
   const monthStr = formatMonth(payment.month, tenant.language);
@@ -134,14 +182,15 @@ export async function sendThankYouEmail(
       ? `Olá ${tenant.name},\n\nConfirmamos a receção do seu pagamento de €${payment.amount_eur} referente a ${monthStr}.\n\nObrigado!\nTorrinha Parking`
       : `Hi ${tenant.name},\n\nWe confirm receipt of your payment of €${payment.amount_eur} for ${monthStr}.\n\nThank you!\nTorrinha Parking`;
 
-  return sendEmail(tenant.email, subject, body);
+  return sendEmail(tenant.email, subject, body, extraCc);
 }
 
 // --- Payment reminder ---
 
 export async function sendReminderEmail(
   tenant: TenantInfo,
-  payment: { month: string; amount_eur: number }
+  payment: { month: string; amount_eur: number },
+  extraCc?: string[]
 ): Promise<{ success: boolean; error?: string }> {
   const isPt = tenant.language === "pt";
   const monthStr = formatMonth(payment.month, tenant.language);
@@ -161,7 +210,7 @@ export async function sendReminderEmail(
       ? `Olá ${tenant.name},\n\nEste é um lembrete amigável de que a sua renda de €${payment.amount_eur} referente a ${monthStr} ainda não foi recebida.\n\nPor favor proceda ao pagamento assim que possível.\n\nObrigado!\nTorrinha Parking`
       : `Hi ${tenant.name},\n\nThis is a friendly reminder that your rent of €${payment.amount_eur} for ${monthStr} has not yet been received.\n\nPlease arrange payment at your earliest convenience.\n\nThank you!\nTorrinha Parking`;
 
-  return sendEmail(tenant.email, subject, body);
+  return sendEmail(tenant.email, subject, body, extraCc);
 }
 
 // --- Owner alert: unpaid ---
