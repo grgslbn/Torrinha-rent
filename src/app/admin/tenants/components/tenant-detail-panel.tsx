@@ -5,6 +5,8 @@ import type { Tenant, Spot } from "../types";
 import SpotAssignmentSection from "./spot-assignment-section";
 import ContactsSection from "./contacts-section";
 import PaymentHistorySection from "./payment-history-section";
+import ContextSection from "./context-section";
+import CommunicationsSection from "./communications-section";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SectionLabel } from "@/components/ui/section-label";
@@ -286,6 +288,11 @@ export default function TenantDetailPanel({
             </div>
           </PanelSection>
 
+          {/* ─── Context ─── */}
+          <PanelSection title="Context">
+            <ContextSection tenant={tenant} onError={setError} />
+          </PanelSection>
+
           {/* ─── Spot Assignment ─── */}
           <PanelSection title="Spot Assignment">
             <SpotAssignmentSection
@@ -332,6 +339,11 @@ export default function TenantDetailPanel({
           {/* ─── Payment History ─── */}
           <PanelSection title="Payment History">
             <PaymentHistorySection tenantId={tenant.id} />
+          </PanelSection>
+
+          {/* ─── Communications ─── */}
+          <PanelSection title="Communications">
+            <CommunicationsSection tenantId={tenant.id} />
           </PanelSection>
 
           {/* ─── Deactivate confirmation ─── */}

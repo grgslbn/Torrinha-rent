@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import Anthropic from "@anthropic-ai/sdk";
+import { logEmail } from "./email";
 
 // --- Parking info (update here when pricing or conditions change) ---
 
@@ -415,6 +416,18 @@ ${JSON.stringify(senderContext, null, 2)}${historyBlock}`;
     console.error("[email-agent] Insert error:", insertError);
     throw insertError;
   }
+
+  // Log inbound email
+  await logEmail({
+    tenant_id: tenant?.id ?? null,
+    direction: "inbound",
+    template: null,
+    to_email: payload.to || "",
+    from_email: fromEmail,
+    subject,
+    body: bodyText,
+    metadata: { inbox_id: inboxRow?.id ?? null, classification: claudeResult.classification },
+  });
 
   // --- Handle Claude-suggested waitlist action ---
   if (

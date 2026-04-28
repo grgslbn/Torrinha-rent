@@ -60,6 +60,35 @@ function currentMonthStr(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
+// --- Log email (best-effort, never throws) ---
+
+async function logEmail(opts: {
+  tenant_id: string | null;
+  direction: "outbound" | "inbound";
+  template: string | null;
+  to_email: string;
+  from_email: string;
+  subject: string;
+  body: string;
+  metadata?: Record<string, unknown> | null;
+}): Promise<void> {
+  try {
+    const supabase = await createClient();
+    await supabase.from("torrinha_email_log").insert({
+      tenant_id: opts.tenant_id,
+      direction: opts.direction,
+      template: opts.template,
+      to_email: opts.to_email,
+      from_email: opts.from_email,
+      subject: opts.subject,
+      body: opts.body,
+      metadata: opts.metadata ?? null,
+    });
+  } catch (err) {
+    console.error("[email-log] Failed to log email:", err);
+  }
+}
+
 // --- Generate email content (used for preview + sending) ---
 
 export function generateEmail(
@@ -140,11 +169,18 @@ export function generateEmail(
 
 // --- Send email ---
 
+type SendOptions = {
+  extraCc?: string[];
+  tenant_id?: string;
+  template?: string;
+  metadata?: Record<string, unknown>;
+};
+
 async function sendEmail(
   to: string,
   subject: string,
   text: string,
-  extraCc?: string[]
+  options?: SendOptions
 ): Promise<{ success: boolean; error?: string }> {
   const from = process.env.PARKING_EMAIL || process.env.EMAIL_FROM || "parking@mail.torrinha149.com";
   const ownerEmail = process.env.OWNER_EMAIL;
@@ -153,7 +189,7 @@ async function sendEmail(
   const isOwnerEmail = ownerEmail && to === ownerEmail;
   const ccAddresses = [
     ...(!isOwnerEmail && ccSettings.enabled && ccSettings.email ? [ccSettings.email] : []),
-    ...(extraCc ?? []),
+    ...(options?.extraCc ?? []),
   ].filter(Boolean);
 
   const ccPayload =
@@ -169,6 +205,18 @@ async function sendEmail(
       console.error("Email send error:", error);
       return { success: false, error: error.message };
     }
+
+    await logEmail({
+      tenant_id: options?.tenant_id ?? null,
+      direction: "outbound",
+      template: options?.template ?? null,
+      to_email: to,
+      from_email: from,
+      subject,
+      body: text,
+      metadata: options?.metadata ?? null,
+    });
+
     return { success: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
@@ -180,7 +228,7 @@ async function sendEmail(
 // --- Public API ---
 
 export async function sendThankYouEmail(
-  tenant: { name: string; email: string; language: string },
+  tenant: { id?: string; name: string; email: string; language: string },
   payment: { id: string; month: string; amount_eur: number },
   extraCc?: string[]
 ): Promise<{ success: boolean; error?: string }> {
@@ -189,7 +237,12 @@ export async function sendThankYouEmail(
     amount: payment.amount_eur,
     month: payment.month,
   });
-  return sendEmail(tenant.email, subject, body, extraCc);
+  return sendEmail(tenant.email, subject, body, {
+    extraCc,
+    tenant_id: tenant.id,
+    template: "thank-you",
+    metadata: { month: payment.month, amount: payment.amount_eur, payment_id: payment.id },
+  });
 }
 
 export async function sendGeneratedEmail(
@@ -200,5 +253,5 @@ export async function sendGeneratedEmail(
   extraCc?: string[]
 ): Promise<{ success: boolean; error?: string }> {
   const { subject, body } = generateEmail(template, language, data);
-  return sendEmail(to, subject, body, extraCc);
+  return sendEmail(to, subject, body, { extraCc, template });
 }

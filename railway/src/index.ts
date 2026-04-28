@@ -6,6 +6,7 @@ import {
   sendReminderEmail,
   sendOwnerUnpaidAlert,
   sendOwnerOverdueAlert,
+  logEmail,
 } from "./email";
 import { startCrons } from "./crons";
 import { processInboundEmail } from "./email-agent";
@@ -176,7 +177,7 @@ app.post("/webhooks/zapier", async (req, res) => {
 
         // Send thank-you email
         await sendThankYouEmail(
-          { name: tenant.name, email: tenant.email, language: tenant.language },
+          { id: tenant.id, name: tenant.name, email: tenant.email, language: tenant.language },
           { month, amount_eur: amount },
           extraCc
         );
@@ -408,7 +409,7 @@ app.post("/cron/remind-tenants", requireCronSecret, async (_req, res) => {
       const extraCc = (contactRows ?? []).map((c) => c.email).filter(Boolean) as string[];
 
       const result = await sendReminderEmail(
-        tenant,
+        { id: tenant.id, name: tenant.name, email: tenant.email, language: tenant.language },
         { month, amount_eur: Number(p.amount_eur ?? tenant.rent_eur) },
         extraCc
       );
@@ -676,7 +677,7 @@ app.post("/email/send-reply", requireCronSecret, async (req, res) => {
     // Get the original inbox item
     const { data: inboxItem, error: fetchError } = await db
       .from("torrinha_inbox")
-      .select("from_email, from_name")
+      .select("from_email, from_name, tenant_id")
       .eq("id", inbox_id)
       .single();
 
@@ -729,6 +730,18 @@ app.post("/email/send-reply", requireCronSecret, async (req, res) => {
         draft_body: replyBody,
       })
       .eq("id", inbox_id);
+
+    // Log outbound reply
+    await logEmail({
+      tenant_id: inboxItem.tenant_id ?? null,
+      direction: "outbound",
+      template: null,
+      to_email: inboxItem.from_email,
+      from_email: process.env.PARKING_EMAIL || process.env.EMAIL_FROM || "parking@mail.torrinha149.com",
+      subject: subject || "Re: (no subject)",
+      body: replyBody,
+      metadata: { inbox_id, trigger: "manual_reply" },
+    });
 
     console.log(`[send-reply] Sent reply for inbox ${inbox_id} to ${inboxItem.from_email}`);
     res.json({ ok: true });

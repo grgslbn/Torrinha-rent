@@ -1,5 +1,6 @@
 import { Resend } from "resend";
 import { createClient } from "@supabase/supabase-js";
+import { assembleTenantContext, generatePersonalisedEmail } from "./email-personalise";
 
 let _resend: Resend | null = null;
 function getResend(): Resend {
@@ -47,7 +48,8 @@ async function getOwnerCcSettings(): Promise<CcSettings> {
   return _ccSettings!;
 }
 
-type TenantInfo = {
+export type TenantInfo = {
+  id: string;
   name: string;
   email: string;
   language: string;
@@ -99,13 +101,50 @@ function applyPlaceholders(
   return result;
 }
 
+// --- Log email to DB (best-effort, never throws) ---
+
+async function logEmail(opts: {
+  tenant_id: string | null;
+  direction: "outbound" | "inbound";
+  template: string | null;
+  to_email: string;
+  from_email: string;
+  subject: string;
+  body: string;
+  metadata?: Record<string, unknown> | null;
+}): Promise<void> {
+  try {
+    await supabase().from("torrinha_email_log").insert({
+      tenant_id: opts.tenant_id,
+      direction: opts.direction,
+      template: opts.template,
+      to_email: opts.to_email,
+      from_email: opts.from_email,
+      subject: opts.subject,
+      body: opts.body,
+      metadata: opts.metadata ?? null,
+    });
+  } catch (err) {
+    console.error("[email-log] Failed to log email:", err);
+  }
+}
+
+export { logEmail };
+
 // --- Send email (shared) ---
+
+type SendOptions = {
+  extraCc?: string[];
+  tenant_id?: string;
+  template?: string;
+  metadata?: Record<string, unknown>;
+};
 
 async function sendEmail(
   to: string,
   subject: string,
   text: string,
-  extraCc?: string[]
+  options?: SendOptions
 ): Promise<{ success: boolean; error?: string }> {
   const from = process.env.PARKING_EMAIL || process.env.EMAIL_FROM || "parking@mail.torrinha149.com";
   const ownerEmail = process.env.OWNER_EMAIL;
@@ -114,7 +153,8 @@ async function sendEmail(
   let actualSubject = subject;
   let actualText = text;
 
-  if (isDryRun()) {
+  const dryRun = isDryRun();
+  if (dryRun) {
     if (!ownerEmail) return { success: false, error: "EMAIL_DRY_RUN is true but OWNER_EMAIL not set" };
     actualTo = ownerEmail;
     actualSubject = `[DRY RUN] ${subject}`;
@@ -123,11 +163,10 @@ async function sendEmail(
   }
 
   const ccSettings = await getOwnerCcSettings();
-  // Skip owner CC when emailing the owner (no self-CC on owner alerts)
   const isOwnerEmail = ownerEmail && actualTo === ownerEmail;
   const ccAddresses = [
     ...(!isOwnerEmail && ccSettings.enabled && ccSettings.email ? [ccSettings.email] : []),
-    ...(extraCc ?? []),
+    ...(options?.extraCc ?? []),
   ].filter(Boolean);
 
   const ccPayload =
@@ -149,12 +188,41 @@ async function sendEmail(
       console.error("Email send error:", error);
       return { success: false, error: error.message };
     }
+
+    await logEmail({
+      tenant_id: options?.tenant_id ?? null,
+      direction: "outbound",
+      template: options?.template ?? null,
+      to_email: to,
+      from_email: from,
+      subject,
+      body: text,
+      metadata: {
+        ...(options?.metadata ?? {}),
+        ...(dryRun ? { dry_run: true, redirected_to: actualTo } : {}),
+      },
+    });
+
     return { success: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     console.error("Email send exception:", message);
     return { success: false, error: message };
   }
+}
+
+// --- Personalised email helpers ---
+
+function staticThankYouBody(tenant: TenantInfo, amount: number, monthStr: string): string {
+  return tenant.language === "pt"
+    ? `Olá ${tenant.name},\n\nConfirmamos a receção do seu pagamento de €${amount} referente a ${monthStr}.\n\nObrigado!\nTorrinha Parking`
+    : `Hi ${tenant.name},\n\nWe confirm receipt of your payment of €${amount} for ${monthStr}.\n\nThank you!\nTorrinha Parking`;
+}
+
+function staticReminderBody(tenant: TenantInfo, amount: number, monthStr: string): string {
+  return tenant.language === "pt"
+    ? `Olá ${tenant.name},\n\nEste é um lembrete amigável de que a sua renda de €${amount} referente a ${monthStr} ainda não foi recebida.\n\nPor favor proceda ao pagamento assim que possível.\n\nObrigado!\nTorrinha Parking`
+    : `Hi ${tenant.name},\n\nThis is a friendly reminder that your rent of €${amount} for ${monthStr} has not yet been received.\n\nPlease arrange payment at your earliest convenience.\n\nThank you!\nTorrinha Parking`;
 }
 
 // --- Thank-you email ---
@@ -166,23 +234,33 @@ export async function sendThankYouEmail(
 ): Promise<{ success: boolean; error?: string }> {
   const isPt = tenant.language === "pt";
   const monthStr = formatMonth(payment.month, tenant.language);
-  const vars = { tenant_name: tenant.name, amount: String(payment.amount_eur), month: monthStr };
 
-  const tpl = await getTemplate(isPt ? "payment_thankyou_pt" : "payment_thankyou_en");
+  const subject = isPt
+    ? `Torrinha — Pagamento recebido (${monthStr})`
+    : `Torrinha — Payment received (${monthStr})`;
 
-  const subject = tpl
-    ? applyPlaceholders(tpl.subject, vars)
-    : isPt
-      ? `Torrinha — Pagamento recebido (${monthStr})`
-      : `Torrinha — Payment received (${monthStr})`;
+  let body: string;
+  let personalised = false;
 
-  const body = tpl
-    ? applyPlaceholders(tpl.body, vars)
-    : isPt
-      ? `Olá ${tenant.name},\n\nConfirmamos a receção do seu pagamento de €${payment.amount_eur} referente a ${monthStr}.\n\nObrigado!\nTorrinha Parking`
-      : `Hi ${tenant.name},\n\nWe confirm receipt of your payment of €${payment.amount_eur} for ${monthStr}.\n\nThank you!\nTorrinha Parking`;
+  try {
+    const context = await assembleTenantContext(tenant.id, payment.month);
+    body = await generatePersonalisedEmail("thank-you", context);
+    personalised = true;
+  } catch (err) {
+    console.error("[email] LLM personalisation failed, falling back to static template:", err);
+    const tpl = await getTemplate(isPt ? "payment_thankyou_pt" : "payment_thankyou_en");
+    const vars = { tenant_name: tenant.name, amount: String(payment.amount_eur), month: monthStr };
+    body = tpl
+      ? applyPlaceholders(tpl.body, vars)
+      : staticThankYouBody(tenant, payment.amount_eur, monthStr);
+  }
 
-  return sendEmail(tenant.email, subject, body, extraCc);
+  return sendEmail(tenant.email, subject, body, {
+    extraCc,
+    tenant_id: tenant.id,
+    template: "thank-you",
+    metadata: { month: payment.month, amount: payment.amount_eur, personalised },
+  });
 }
 
 // --- Payment reminder ---
@@ -194,23 +272,33 @@ export async function sendReminderEmail(
 ): Promise<{ success: boolean; error?: string }> {
   const isPt = tenant.language === "pt";
   const monthStr = formatMonth(payment.month, tenant.language);
-  const vars = { tenant_name: tenant.name, amount: String(payment.amount_eur), month: monthStr };
 
-  const tpl = await getTemplate(isPt ? "payment_reminder_pt" : "payment_reminder_en");
+  const subject = isPt
+    ? `Torrinha — Lembrete de pagamento (${monthStr})`
+    : `Torrinha — Payment reminder (${monthStr})`;
 
-  const subject = tpl
-    ? applyPlaceholders(tpl.subject, vars)
-    : isPt
-      ? `Torrinha — Lembrete de pagamento (${monthStr})`
-      : `Torrinha — Payment reminder (${monthStr})`;
+  let body: string;
+  let personalised = false;
 
-  const body = tpl
-    ? applyPlaceholders(tpl.body, vars)
-    : isPt
-      ? `Olá ${tenant.name},\n\nEste é um lembrete amigável de que a sua renda de €${payment.amount_eur} referente a ${monthStr} ainda não foi recebida.\n\nPor favor proceda ao pagamento assim que possível.\n\nObrigado!\nTorrinha Parking`
-      : `Hi ${tenant.name},\n\nThis is a friendly reminder that your rent of €${payment.amount_eur} for ${monthStr} has not yet been received.\n\nPlease arrange payment at your earliest convenience.\n\nThank you!\nTorrinha Parking`;
+  try {
+    const context = await assembleTenantContext(tenant.id, payment.month);
+    body = await generatePersonalisedEmail("reminder", context);
+    personalised = true;
+  } catch (err) {
+    console.error("[email] LLM personalisation failed, falling back to static template:", err);
+    const tpl = await getTemplate(isPt ? "payment_reminder_pt" : "payment_reminder_en");
+    const vars = { tenant_name: tenant.name, amount: String(payment.amount_eur), month: monthStr };
+    body = tpl
+      ? applyPlaceholders(tpl.body, vars)
+      : staticReminderBody(tenant, payment.amount_eur, monthStr);
+  }
 
-  return sendEmail(tenant.email, subject, body, extraCc);
+  return sendEmail(tenant.email, subject, body, {
+    extraCc,
+    tenant_id: tenant.id,
+    template: "reminder",
+    metadata: { month: payment.month, amount: payment.amount_eur, personalised },
+  });
 }
 
 // --- Owner alert: unpaid ---
@@ -236,7 +324,10 @@ export async function sendOwnerUnpaidAlert(
     ? applyPlaceholders(tpl.body, vars)
     : `Hi,\n\nThe following tenants have not yet paid for ${monthStr}:\n\n${tenantList}\n\nTorrinha Parking`;
 
-  return sendEmail(ownerEmail, subject, body);
+  return sendEmail(ownerEmail, subject, body, {
+    template: "owner-unpaid",
+    metadata: { month, count: unpaidTenants.length },
+  });
 }
 
 // --- Owner alert: overdue ---
@@ -262,5 +353,8 @@ export async function sendOwnerOverdueAlert(
     ? applyPlaceholders(tpl.body, vars)
     : `Hi,\n\nThe following tenants are now overdue for ${monthStr}:\n\n${tenantList}\n\nThese payments have been marked as overdue in the system.\n\nTorrinha Parking`;
 
-  return sendEmail(ownerEmail, subject, body);
+  return sendEmail(ownerEmail, subject, body, {
+    template: "owner-overdue",
+    metadata: { month, count: overdueTenants.length },
+  });
 }
