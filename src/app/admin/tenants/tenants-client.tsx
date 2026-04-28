@@ -1,323 +1,93 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import type { Tenant, Spot } from "./types";
+import TenantDetailPanel from "./components/tenant-detail-panel";
 
-type Spot = {
-  id: string;
-  number: number;
-  label: string | null;
-  occupied: boolean;
-  tenant_id: string | null;
-  tenant_name: string | null;
-  incoming_tenant: { tenant_id: string; tenant_name: string; start_date: string } | null;
-};
+const INPUT = "w-full px-2 py-1.5 border border-gray-200 rounded-md text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500";
 
-type Remote = {
-  id: string;
-  count: number;
-  deposit_paid: boolean;
-  returned_date: string | null;
-};
-
-type FutureAssignment = {
-  tenant_id: string;
-  spot_id: string;
-  start_date: string;
-  end_date: string | null;
-  torrinha_spots: { id: string; number: number; label: string | null } | null;
-};
-
-type TenantContact = {
-  id: string;
-  tenant_id: string;
-  label: string | null;
-  name: string;
-  email: string | null;
-  phone: string | null;
-  receives_emails: boolean;
-  notes: string | null;
-};
-
-type Tenant = {
-  id: string;
-  name: string;
-  email: string;
-  phone: string | null;
-  language: string;
-  rent_eur: number;
-  payment_due_day: number;
-  start_date: string;
-  notes: string | null;
-  active: boolean;
-  status: "active" | "upcoming" | "inactive";
-  access_token: string | null;
-  torrinha_spots: { id: string; number: number; label: string | null }[];
-  torrinha_remotes: Remote[];
-  future_assignments: FutureAssignment[];
-  torrinha_tenant_contacts: TenantContact[];
-};
-
-type EditingCell = { tenantId: string; field: string } | null;
-
-function spotLabel(s: { number: number; label?: string | null }): string {
-  return s.label || `${s.number}`;
+function sLabel(s: { number: number; label: string | null }): string {
+  return s.label || String(s.number);
 }
 
-function spotLabels(t: Tenant): string {
-  if (!t.torrinha_spots || t.torrinha_spots.length === 0) return "—";
-  return t.torrinha_spots
-    .slice()
-    .sort((a, b) => a.number - b.number)
-    .map((s) => s.label || String(s.number))
-    .join(", ");
-}
-
-function upcomingSpotLabel(t: Tenant): string | null {
-  if (!t.future_assignments || t.future_assignments.length === 0) return null;
-  return t.future_assignments
-    .map((a) => {
-      const s = a.torrinha_spots;
-      const label = s ? (s.label || String(s.number)) : "?";
-      return `${label} from ${a.start_date}`;
-    })
-    .join(", ");
+function sLabels(t: Tenant): string {
+  if (t.torrinha_spots?.length > 0) {
+    return t.torrinha_spots
+      .slice()
+      .sort((a, b) => a.number - b.number)
+      .map(sLabel)
+      .join(", ");
+  }
+  if (t.future_assignments?.length > 0) {
+    const first = t.future_assignments[0];
+    const s = first.torrinha_spots;
+    return `→ ${s ? sLabel(s) : "?"} from ${first.start_date}`;
+  }
+  return "—";
 }
 
 function StatusBadge({ status }: { status: Tenant["status"] }) {
-  if (status === "active") {
-    return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
-        Active
-      </span>
-    );
-  }
-  if (status === "upcoming") {
-    return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">
-        Upcoming
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500">
-      Inactive
-    </span>
-  );
+  if (status === "active")
+    return <span className="px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">Active</span>;
+  if (status === "upcoming")
+    return <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">Upcoming</span>;
+  return <span className="px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500">Inactive</span>;
 }
 
 export default function TenantsClient() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [allSpots, setAllSpots] = useState<Spot[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [editingCell, setEditingCell] = useState<EditingCell>(null);
-  const [editValue, setEditValue] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [deactivating, setDeactivating] = useState<Tenant | null>(null);
-  const [assigningSpot, setAssigningSpot] = useState<Tenant | null>(null);
+  const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
+  const [showAddPanel, setShowAddPanel] = useState(false);
   const [error, setError] = useState("");
-  const [expandedContactsId, setExpandedContactsId] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
-    const [tenantsRes, spotsRes] = await Promise.all([
-      fetch("/api/tenants"),
-      fetch("/api/spots"),
-    ]);
-    if (tenantsRes.ok) setTenants(await tenantsRes.json());
-    if (spotsRes.ok) setAllSpots(await spotsRes.json());
+    const [tr, sr] = await Promise.all([fetch("/api/tenants"), fetch("/api/spots")]);
+    if (tr.ok) setTenants(await tr.json());
+    if (sr.ok) setAllSpots(await sr.json());
     setLoading(false);
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const remoteCount = (t: Tenant) =>
-    t.torrinha_remotes?.filter((r) => !r.returned_date).reduce((sum, r) => sum + r.count, 0) ?? 0;
-
-  function startEdit(tenantId: string, field: string, currentValue: string) {
-    setEditingCell({ tenantId, field });
-    setEditValue(currentValue);
-  }
-
-  async function saveEdit() {
-    if (!editingCell) return;
-    setSaving(true);
-    const res = await fetch("/api/tenants", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: editingCell.tenantId, [editingCell.field]: editValue }),
-    });
-    if (res.ok) {
-      await fetchData();
-    } else {
-      const data = await res.json().catch(() => ({}));
-      setError(data.error || "Failed to save");
-    }
-    setEditingCell(null);
-    setSaving(false);
-  }
-
-  function handleEditKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Enter") saveEdit();
-    if (e.key === "Escape") setEditingCell(null);
-  }
-
-  function renderEditableCell(
-    tenant: Tenant,
-    field: keyof Tenant,
-    displayValue: string,
-    inputType: string = "text"
-  ) {
-    if (tenant.status === "inactive") {
-      return <span className="text-gray-400">{displayValue}</span>;
-    }
-    const isEditing = editingCell?.tenantId === tenant.id && editingCell?.field === field;
-    if (isEditing) {
-      if (field === "language") {
-        return (
-          <select value={editValue} onChange={(e) => setEditValue(e.target.value)} onBlur={saveEdit} autoFocus
-            className="w-full px-1 py-0.5 border border-blue-300 rounded text-sm text-gray-900">
-            <option value="pt">PT</option>
-            <option value="en">EN</option>
-          </select>
-        );
-      }
-      if (field === "notes") {
-        return (
-          <textarea value={editValue} onChange={(e) => setEditValue(e.target.value)} onBlur={saveEdit}
-            onKeyDown={(e) => { if (e.key === "Escape") setEditingCell(null); }}
-            autoFocus rows={2}
-            className="w-full px-1 py-0.5 border border-blue-300 rounded text-sm text-gray-900" />
-        );
-      }
-      return (
-        <input type={inputType} value={editValue} onChange={(e) => setEditValue(e.target.value)}
-          onBlur={saveEdit} onKeyDown={handleEditKeyDown} autoFocus
-          className="w-full px-1 py-0.5 border border-blue-300 rounded text-sm text-gray-900" />
-      );
-    }
-    return (
-      <span onClick={() => startEdit(tenant.id, field, String(tenant[field] ?? ""))}
-        className="cursor-pointer hover:bg-blue-50 px-1 py-0.5 rounded -mx-1 block" title="Click to edit">
-        {displayValue || "—"}
-      </span>
-    );
-  }
-
-  async function handleDeactivate() {
-    if (!deactivating) return;
-    setSaving(true);
-    const res = await fetch("/api/tenants/deactivate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tenant_id: deactivating.id, mark_remotes_returned: true }),
-    });
-    if (res.ok) {
-      await fetchData();
-      setDeactivating(null);
-    } else {
-      const data = await res.json().catch(() => ({}));
-      setError(data.error || "Failed to deactivate");
-    }
-    setSaving(false);
-  }
-
-  if (loading) {
-    return <div className="text-center py-12 text-gray-500">Loading tenants...</div>;
-  }
-
+  const selectedTenant = tenants.find((t) => t.id === selectedTenantId) ?? null;
   const activeTenants = tenants.filter((t) => t.status === "active");
   const upcomingTenants = tenants.filter((t) => t.status === "upcoming");
   const inactiveTenants = tenants.filter((t) => t.status === "inactive");
 
-  const tableHeaders = (
+  if (loading) {
+    return <div className="text-center py-12 text-gray-500">Loading tenants…</div>;
+  }
+
+  const tableHead = (
     <tr>
-      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Spots</th>
-      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
-      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rent</th>
-      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Due Day</th>
-      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Start</th>
-      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Remotes</th>
-      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Lang</th>
-      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Notes</th>
-      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Portal</th>
-      <th className="px-3 py-3 w-28"></th>
+      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Status</th>
+      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Spot</th>
+      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Name</th>
+      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Rent</th>
+      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Start</th>
+      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Lang</th>
     </tr>
   );
 
-  function renderTenantRow(t: Tenant) {
-    const upcomingLabel = upcomingSpotLabel(t);
-    const isInactive = t.status === "inactive";
-    const hasNoSpot = t.torrinha_spots.length === 0 && t.future_assignments.length === 0;
-    const contactCount = t.torrinha_tenant_contacts?.length ?? 0;
-    const contactsExpanded = expandedContactsId === t.id;
-
+  function renderRow(t: Tenant) {
+    const isSelected = t.id === selectedTenantId;
     return (
-      <>
-        <tr key={t.id} className={`hover:bg-gray-50 ${isInactive ? "opacity-50" : ""}`}>
-          <td className="px-3 py-3 text-sm">
-            <StatusBadge status={t.status} />
-          </td>
-          <td className="px-3 py-3 text-sm text-gray-900 font-medium">
-            {hasNoSpot && !isInactive ? (
-              <div>
-                <span className="text-gray-400 text-xs">No spot</span>
-                <button
-                  onClick={() => setAssigningSpot(t)}
-                  className="block text-xs text-blue-600 hover:text-blue-800 hover:underline mt-0.5"
-                >
-                  Assign spot →
-                </button>
-              </div>
-            ) : (
-              <div>
-                <div>{spotLabels(t)}</div>
-                {upcomingLabel && (
-                  <div className="text-xs text-blue-600 mt-0.5">→ {upcomingLabel}</div>
-                )}
-              </div>
-            )}
-          </td>
-          <td className="px-3 py-3 text-sm text-gray-900">{renderEditableCell(t, "name", t.name)}</td>
-          <td className="px-3 py-3 text-sm text-gray-500">{renderEditableCell(t, "email", t.email, "email")}</td>
-          <td className="px-3 py-3 text-sm text-gray-500">{renderEditableCell(t, "phone", t.phone || "", "tel")}</td>
-          <td className="px-3 py-3 text-sm text-gray-900">{renderEditableCell(t, "rent_eur", `€${t.rent_eur}`, "number")}</td>
-          <td className="px-3 py-3 text-sm text-gray-500">{renderEditableCell(t, "payment_due_day", String(t.payment_due_day), "number")}</td>
-          <td className="px-3 py-3 text-sm text-gray-500">{renderEditableCell(t, "start_date", t.start_date, "date")}</td>
-          <td className="px-3 py-3 text-sm text-gray-900 text-center">{remoteCount(t)}</td>
-          <td className="px-3 py-3 text-sm text-gray-500 uppercase">{renderEditableCell(t, "language", t.language.toUpperCase())}</td>
-          <td className="px-3 py-3 text-sm text-gray-400 max-w-[120px] truncate">{renderEditableCell(t, "notes", t.notes || "")}</td>
-          <td className="px-3 py-3 text-sm"><PortalLinkCell token={t.access_token} /></td>
-          <td className="px-3 py-3 text-sm">
-            <div className="flex flex-col gap-1 items-start">
-              <button
-                onClick={() => setExpandedContactsId(contactsExpanded ? null : t.id)}
-                className="text-xs text-gray-500 hover:text-gray-800"
-              >
-                Contacts{contactCount > 0 ? ` (${contactCount})` : " +"}
-              </button>
-              {t.status !== "inactive" && (
-                <button onClick={() => setDeactivating(t)} className="text-red-500 hover:text-red-700 text-xs">
-                  Deactivate
-                </button>
-              )}
-            </div>
-          </td>
-        </tr>
-        {contactsExpanded && (
-          <tr key={`${t.id}-contacts`}>
-            <td colSpan={13} className="bg-gray-50 px-6 py-3 border-b border-gray-200">
-              <ContactsSubRow
-                tenant={t}
-                onChanged={fetchData}
-                onError={setError}
-              />
-            </td>
-          </tr>
-        )}
-      </>
+      <tr
+        key={t.id}
+        onClick={() => { setSelectedTenantId(t.id); setShowAddPanel(false); }}
+        className={`cursor-pointer transition-colors ${
+          isSelected ? "bg-blue-50" : "hover:bg-gray-50"
+        } ${t.status === "inactive" ? "opacity-50" : ""}`}
+      >
+        <td className="px-4 py-3 text-sm"><StatusBadge status={t.status} /></td>
+        <td className="px-4 py-3 text-sm font-medium text-gray-900">{sLabels(t)}</td>
+        <td className="px-4 py-3 text-sm text-gray-900">{t.name}</td>
+        <td className="px-4 py-3 text-sm text-gray-500">€{t.rent_eur}</td>
+        <td className="px-4 py-3 text-sm text-gray-500 tabular-nums">{t.start_date}</td>
+        <td className="px-4 py-3 text-sm text-gray-400 uppercase">{t.language}</td>
+      </tr>
     );
   }
 
@@ -332,135 +102,134 @@ export default function TenantsClient() {
           </span>
         </h1>
         <button
-          onClick={() => setShowAddForm(!showAddForm)}
+          onClick={() => { setShowAddPanel(true); setSelectedTenantId(null); }}
           className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700"
         >
-          {showAddForm ? "Cancel" : "Add Tenant"}
+          Add Tenant
         </button>
       </div>
 
       {error && (
         <div className="mb-4 p-3 bg-red-50 text-red-700 rounded text-sm flex justify-between">
           {error}
-          <button onClick={() => setError("")} className="text-red-500 hover:text-red-700">dismiss</button>
+          <button onClick={() => setError("")} className="text-red-400 hover:text-red-600">✕</button>
         </div>
       )}
 
-      {showAddForm && (
-        <AddTenantForm
-          allSpots={allSpots}
-          onSuccess={() => { setShowAddForm(false); fetchData(); }}
-          onError={setError}
-        />
-      )}
-
-      {/* Active + Upcoming tenants */}
+      {/* Active + Upcoming table */}
       <div className="bg-white rounded-lg shadow overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">{tableHeaders}</thead>
+          <thead className="bg-gray-50">{tableHead}</thead>
           <tbody className="divide-y divide-gray-200">
             {activeTenants.length === 0 && upcomingTenants.length === 0 ? (
               <tr>
-                <td colSpan={13} className="px-4 py-8 text-center text-sm text-gray-500">
+                <td colSpan={6} className="px-4 py-8 text-center text-sm text-gray-500">
                   No tenants. Click &quot;Add Tenant&quot; to get started.
                 </td>
               </tr>
             ) : (
-              [...activeTenants, ...upcomingTenants].map(renderTenantRow)
+              [...activeTenants, ...upcomingTenants].map(renderRow)
             )}
           </tbody>
         </table>
       </div>
 
-      {/* Inactive tenants */}
+      {/* Inactive */}
       {inactiveTenants.length > 0 && (
         <div className="mt-8">
-          <h2 className="text-lg font-semibold text-gray-500 mb-3">Inactive Tenants</h2>
+          <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">Inactive</h2>
           <div className="bg-white rounded-lg shadow overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">{tableHeaders}</thead>
+              <thead className="bg-gray-50">{tableHead}</thead>
               <tbody className="divide-y divide-gray-200">
-                {inactiveTenants.map(renderTenantRow)}
+                {inactiveTenants.map(renderRow)}
               </tbody>
             </table>
           </div>
         </div>
       )}
 
-      {deactivating && (
-        <DeactivateModal
-          tenant={deactivating}
-          remoteCount={remoteCount(deactivating)}
-          saving={saving}
-          onConfirm={handleDeactivate}
-          onCancel={() => setDeactivating(null)}
+      {/* Detail panel */}
+      {selectedTenant && (
+        <TenantDetailPanel
+          tenant={selectedTenant}
+          allSpots={allSpots}
+          onClose={() => setSelectedTenantId(null)}
+          onRefresh={fetchData}
         />
       )}
 
-      {assigningSpot && (
-        <AssignSpotModal
-          tenant={assigningSpot}
+      {/* Add tenant panel */}
+      {showAddPanel && (
+        <AddTenantPanel
           allSpots={allSpots}
-          onSuccess={() => { setAssigningSpot(null); fetchData(); }}
+          onSuccess={() => { setShowAddPanel(false); fetchData(); }}
           onError={setError}
-          onCancel={() => setAssigningSpot(null)}
+          onClose={() => setShowAddPanel(false)}
         />
       )}
     </div>
   );
 }
 
-// --- Add Tenant Form ---
-function AddTenantForm({
+// ─── Add Tenant Panel ───
+
+function AddTenantPanel({
   allSpots,
   onSuccess,
   onError,
+  onClose,
 }: {
   allSpots: Spot[];
   onSuccess: () => void;
   onError: (msg: string) => void;
+  onClose: () => void;
 }) {
   const today = new Date().toISOString().split("T")[0];
+  const [visible, setVisible] = useState(false);
   const [form, setForm] = useState({
     spot_ids: [] as string[],
-    name: "",
-    email: "",
-    phone: "",
-    language: "pt",
-    rent_eur: "",
-    payment_due_day: "1",
-    start_date: today,
-    notes: "",
+    name: "", email: "", phone: "",
+    language: "pt", rent_eur: "",
+    payment_due_day: "1", start_date: today, notes: "",
   });
-  // Map of spot_id → last day (end_date) for the departing tenant on that spot
   const [departingEndDates, setDepartingEndDates] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
 
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setVisible(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   const isUpcoming = form.start_date > today;
 
-  function set(field: string, value: string) {
+  function setField(field: string, value: string) {
     setForm((f) => ({ ...f, [field]: value }));
   }
 
   function toggleSpot(spotId: string) {
     setForm((f) => {
       const already = f.spot_ids.includes(spotId);
-      const next = already ? f.spot_ids.filter((id) => id !== spotId) : [...f.spot_ids, spotId];
-      // Clear departing date if deselecting
-      if (already) {
-        setDepartingEndDates((d) => { const n = { ...d }; delete n[spotId]; return n; });
-      }
-      return { ...f, spot_ids: next };
+      if (already) setDepartingEndDates((d) => { const n = { ...d }; delete n[spotId]; return n; });
+      return {
+        ...f,
+        spot_ids: already ? f.spot_ids.filter((id) => id !== spotId) : [...f.spot_ids, spotId],
+      };
     });
   }
 
-  function setDepartingDate(spotId: string, value: string) {
-    setDepartingEndDates((d) => ({ ...d, [spotId]: value }));
-  }
+  const selectedOccupiedSpots = allSpots.filter(
+    (s) => form.spot_ids.includes(s.id) && s.occupied
+  );
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    // Validate departing dates come before new tenant's start
     for (const [spotId, endDate] of Object.entries(departingEndDates)) {
       if (endDate && endDate >= form.start_date) {
         const spot = allSpots.find((s) => s.id === spotId);
@@ -474,39 +243,44 @@ function AddTenantForm({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...form, departing_end_dates: departingEndDates }),
     });
-    if (res.ok) {
-      onSuccess();
-    } else {
+    if (res.ok) onSuccess();
+    else {
       const data = await res.json().catch(() => ({}));
       onError(data.error || "Failed to add tenant");
     }
     setSaving(false);
   }
 
-  const selectedOccupiedSpots = allSpots.filter(
-    (s) => form.spot_ids.includes(s.id) && s.occupied
-  );
-
   return (
-    <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-5 mb-6">
-      <div className="flex items-center gap-3 mb-4">
-        <h2 className="text-lg font-semibold text-gray-900">Add New Tenant</h2>
-        {isUpcoming && (
-          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">
-            Upcoming — starts {form.start_date}
-          </span>
-        )}
-      </div>
+    <>
+      <div className="fixed inset-0 bg-black/30 z-40" onClick={onClose} />
+      <div
+        className={`fixed inset-y-0 right-0 w-full sm:max-w-lg bg-white shadow-2xl z-50 overflow-y-auto
+          transition-transform duration-200 ${visible ? "translate-x-0" : "translate-x-full"}`}
+      >
+        {/* Top bar */}
+        <div className="sticky top-0 bg-white border-b border-gray-200 px-5 py-3 flex items-center justify-between z-10">
+          <button onClick={onClose} className="text-sm text-gray-500 hover:text-gray-800">← Back</button>
+          <span className="text-sm font-medium text-gray-500">New Tenant</span>
+        </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {/* Spot selector */}
-        <div className="col-span-2 sm:col-span-4">
-          <label className="block text-xs font-medium text-gray-600 mb-1">
-            Spot <span className="text-gray-400 font-normal">(optional — can assign later)</span>
-          </label>
-          {allSpots.length === 0 ? (
-            <p className="text-xs text-gray-400">Loading spots…</p>
-          ) : (
+        <form onSubmit={handleSubmit} className="px-5 py-5 space-y-7">
+          {/* Header */}
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-2xl font-bold text-gray-900">New Tenant</h2>
+              {isUpcoming && (
+                <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">Upcoming</span>
+              )}
+            </div>
+            <p className="text-sm text-gray-400 mt-0.5">Starts {form.start_date}</p>
+          </div>
+
+          {/* Spot selector */}
+          <div>
+            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 pb-2 border-b border-gray-100">
+              Spot <span className="font-normal text-gray-300 normal-case">(optional)</span>
+            </h3>
             <div className="flex flex-wrap gap-2">
               {allSpots.map((s) => {
                 const selected = form.spot_ids.includes(s.id);
@@ -524,441 +298,125 @@ function AddTenantForm({
                         : "bg-white text-gray-700 border-gray-300 hover:border-blue-400"
                     }`}
                   >
-                    {spotLabel(s)}
-                    {s.occupied && !selected && <span className="ml-1 text-xs opacity-70">({s.tenant_name})</span>}
+                    {sLabel(s)}
+                    {s.occupied && !selected && (
+                      <span className="ml-1 text-xs opacity-70">({s.tenant_name})</span>
+                    )}
                   </button>
                 );
               })}
             </div>
-          )}
-          {form.spot_ids.length > 0 && (
-            <p className="text-xs text-gray-500 mt-1">
-              {form.spot_ids.length} spot{form.spot_ids.length > 1 ? "s" : ""} selected
-            </p>
-          )}
-        </div>
 
-        {/* Departing tenant date pickers for each occupied spot selected */}
-        {selectedOccupiedSpots.length > 0 && (
-          <div className="col-span-2 sm:col-span-4">
             {selectedOccupiedSpots.map((s) => (
-              <div key={s.id} className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded mb-2">
+              <div key={s.id} className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded mt-2">
                 <div className="flex-1 text-sm text-amber-800">
-                  <span className="font-medium">Spot {spotLabel(s)}</span> is currently occupied by{" "}
-                  <span className="font-medium">{s.tenant_name}</span>.
-                  When is their last day?
+                  <span className="font-medium">Spot {sLabel(s)}</span> occupied by{" "}
+                  <span className="font-medium">{s.tenant_name}</span>. Last day?
                 </div>
                 <input
                   type="date"
                   value={departingEndDates[s.id] ?? ""}
-                  max={form.start_date ? new Date(new Date(form.start_date).getTime() - 86400000).toISOString().split("T")[0] : undefined}
-                  onChange={(e) => setDepartingDate(s.id, e.target.value)}
+                  max={
+                    form.start_date
+                      ? new Date(new Date(form.start_date).getTime() - 86400000).toISOString().split("T")[0]
+                      : undefined
+                  }
+                  onChange={(e) => setDepartingEndDates((d) => ({ ...d, [s.id]: e.target.value }))}
                   required
-                  className="px-2 py-1 border border-amber-300 rounded text-sm text-gray-900 bg-white"
+                  className="px-2 py-1 border border-amber-300 rounded text-sm bg-white"
                 />
               </div>
             ))}
           </div>
-        )}
 
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Name *</label>
-          <input type="text" value={form.name} onChange={(e) => set("name", e.target.value)} required
-            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm text-gray-900" />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Email *</label>
-          <input type="email" value={form.email} onChange={(e) => set("email", e.target.value)} required
-            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm text-gray-900" />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Phone</label>
-          <input type="tel" value={form.phone} onChange={(e) => set("phone", e.target.value)}
-            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm text-gray-900" />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Rent (EUR) *</label>
-          <input type="number" step="0.01" min="0" value={form.rent_eur}
-            onChange={(e) => set("rent_eur", e.target.value)} required
-            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm text-gray-900" />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Due Day</label>
-          <input type="number" min="1" max="28" value={form.payment_due_day}
-            onChange={(e) => set("payment_due_day", e.target.value)}
-            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm text-gray-900" />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">
-            Start Date *{isUpcoming && <span className="ml-1 text-blue-600 font-normal">(upcoming)</span>}
-          </label>
-          <input type="date" value={form.start_date} onChange={(e) => set("start_date", e.target.value)} required
-            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm text-gray-900" />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Language</label>
-          <select value={form.language} onChange={(e) => set("language", e.target.value)}
-            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm text-gray-900">
-            <option value="pt">Português</option>
-            <option value="en">English</option>
-          </select>
-        </div>
-        <div className="col-span-2 sm:col-span-4">
-          <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
-          <input type="text" value={form.notes} onChange={(e) => set("notes", e.target.value)}
-            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm text-gray-900"
-            placeholder="Optional notes..." />
-        </div>
-      </div>
-
-      <div className="mt-4 flex justify-end">
-        <button type="submit" disabled={saving}
-          className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50">
-          {saving ? "Adding..." : isUpcoming ? "Add Upcoming Tenant" : "Add Tenant"}
-        </button>
-      </div>
-    </form>
-  );
-}
-
-// --- Assign Spot Modal (for existing tenants with no spot) ---
-function AssignSpotModal({
-  tenant,
-  allSpots,
-  onSuccess,
-  onError,
-  onCancel,
-}: {
-  tenant: Tenant;
-  allSpots: Spot[];
-  onSuccess: () => void;
-  onError: (msg: string) => void;
-  onCancel: () => void;
-}) {
-  const today = new Date().toISOString().split("T")[0];
-  const [spotId, setSpotId] = useState("");
-  const [startDate, setStartDate] = useState(tenant.start_date >= today ? tenant.start_date : today);
-  const [departingEndDate, setDepartingEndDate] = useState("");
-  const [saving, setSaving] = useState(false);
-
-  const selectedSpot = allSpots.find((s) => s.id === spotId) ?? null;
-  const isOccupied = selectedSpot?.occupied ?? false;
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!spotId) { onError("Select a spot"); return; }
-    if (isOccupied && !departingEndDate) { onError("Enter the departing tenant's last day"); return; }
-    if (isOccupied && departingEndDate >= startDate) {
-      onError(`Departing tenant's last day must be before ${startDate}`);
-      return;
-    }
-
-    setSaving(true);
-    try {
-      // 1. Set end_date on the departing tenant's open assignment (patch by spot_id)
-      if (isOccupied && departingEndDate) {
-        const patchRes = await fetch("/api/spot-assignments", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ spot_id: spotId, end_date: departingEndDate }),
-        });
-        if (!patchRes.ok) {
-          const data = await patchRes.json().catch(() => ({}));
-          onError(data.error || "Failed to update departing tenant's end date");
-          return;
-        }
-      }
-
-      // 2. Create the new assignment
-      const res = await fetch("/api/spot-assignments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tenant_id: tenant.id, spot_id: spotId, start_date: startDate }),
-      });
-
-      if (res.ok) {
-        onSuccess();
-      } else {
-        const data = await res.json().catch(() => ({}));
-        onError(data.error || "Failed to assign spot");
-      }
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
-        <h2 className="text-lg font-bold text-gray-900 mb-1">Assign Spot</h2>
-        <p className="text-sm text-gray-500 mb-4">Assigning a spot to <strong>{tenant.name}</strong></p>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Details */}
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Spot *</label>
-            <select value={spotId} onChange={(e) => { setSpotId(e.target.value); setDepartingEndDate(""); }}
-              className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm text-gray-900" required>
-              <option value="">— select a spot —</option>
-              {allSpots.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {spotLabel(s)}{s.occupied ? ` — ${s.tenant_name} (occupied)` : " — vacant"}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Start Date *</label>
-            <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} required
-              className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm text-gray-900" />
-          </div>
-
-          {isOccupied && (
-            <div className="p-3 bg-amber-50 border border-amber-200 rounded">
-              <p className="text-sm text-amber-800 mb-2">
-                Spot {spotLabel(selectedSpot!)} is currently occupied by{" "}
-                <strong>{selectedSpot!.tenant_name}</strong>. When is their last day?
-              </p>
-              <input
-                type="date"
-                value={departingEndDate}
-                max={startDate ? new Date(new Date(startDate).getTime() - 86400000).toISOString().split("T")[0] : undefined}
-                onChange={(e) => setDepartingEndDate(e.target.value)}
-                required
-                className="w-full px-2 py-1 border border-amber-300 rounded text-sm text-gray-900 bg-white"
-              />
+            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 pb-2 border-b border-gray-100">
+              Details
+            </h3>
+            <div className="space-y-3">
+              <AddFieldRow label="Name *">
+                <input type="text" value={form.name} onChange={(e) => setField("name", e.target.value)} required className={INPUT} />
+              </AddFieldRow>
+              <AddFieldRow label="Email *">
+                <input type="email" value={form.email} onChange={(e) => setField("email", e.target.value)} required className={INPUT} />
+              </AddFieldRow>
+              <AddFieldRow label="Phone">
+                <input type="tel" value={form.phone} onChange={(e) => setField("phone", e.target.value)} className={INPUT} />
+              </AddFieldRow>
+              <AddFieldRow label="Rent *">
+                <div className="flex items-center gap-1">
+                  <span className="text-gray-400 text-sm">€</span>
+                  <input
+                    type="number" step="0.01" min="0"
+                    value={form.rent_eur}
+                    onChange={(e) => setField("rent_eur", e.target.value)}
+                    required
+                    className="w-28 px-2 py-1.5 border border-gray-200 rounded-md text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+              </AddFieldRow>
+              <AddFieldRow label="Due day">
+                <select
+                  value={form.payment_due_day}
+                  onChange={(e) => setField("payment_due_day", e.target.value)}
+                  className="w-24 px-2 py-1.5 border border-gray-200 rounded-md text-sm text-gray-900"
+                >
+                  {Array.from({ length: 28 }, (_, i) => i + 1).map((d) => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
+              </AddFieldRow>
+              <AddFieldRow label={isUpcoming ? "Start * (future)" : "Start *"}>
+                <input
+                  type="date"
+                  value={form.start_date}
+                  onChange={(e) => setField("start_date", e.target.value)}
+                  required
+                  className="w-40 px-2 py-1.5 border border-gray-200 rounded-md text-sm text-gray-900"
+                />
+              </AddFieldRow>
+              <AddFieldRow label="Language">
+                <select
+                  value={form.language}
+                  onChange={(e) => setField("language", e.target.value)}
+                  className="w-32 px-2 py-1.5 border border-gray-200 rounded-md text-sm text-gray-900"
+                >
+                  <option value="pt">Português</option>
+                  <option value="en">English</option>
+                </select>
+              </AddFieldRow>
+              <AddFieldRow label="Notes">
+                <textarea
+                  value={form.notes}
+                  onChange={(e) => setField("notes", e.target.value)}
+                  rows={2} placeholder="—"
+                  className={`${INPUT} resize-none`}
+                />
+              </AddFieldRow>
             </div>
-          )}
+          </div>
 
-          <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={onCancel}
-              className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Cancel</button>
-            <button type="submit" disabled={saving}
-              className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50">
-              {saving ? "Assigning..." : "Assign Spot"}
+          <div className="pb-4">
+            <button
+              type="submit"
+              disabled={saving}
+              className="w-full px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:opacity-50"
+            >
+              {saving ? "Creating…" : isUpcoming ? "Create Upcoming Tenant" : "Create Tenant"}
             </button>
           </div>
         </form>
       </div>
-    </div>
+    </>
   );
 }
 
-// --- Deactivate Modal ---
-function DeactivateModal({
-  tenant, remoteCount, saving, onConfirm, onCancel,
-}: {
-  tenant: Tenant; remoteCount: number; saving: boolean; onConfirm: () => void; onCancel: () => void;
-}) {
-  const [remotesReturned, setRemotesReturned] = useState(false);
-  const [depositRefunded, setDepositRefunded] = useState(false);
-  const hasRemotes = remoteCount > 0;
-  const hasDeposit = tenant.torrinha_remotes?.some((r) => r.deposit_paid && !r.returned_date);
-
+function AddFieldRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
-        <h2 className="text-lg font-bold text-gray-900 mb-2">Deactivate Tenant</h2>
-        <p className="text-sm text-gray-600 mb-4">
-          Are you sure you want to deactivate <strong>{tenant.name}</strong>
-          {tenant.torrinha_spots.length > 0 && (
-            <> (Spot{tenant.torrinha_spots.length > 1 ? "s" : ""} {spotLabels(tenant)})</>
-          )}?
-          This will close their spot assignment(s).
-        </p>
-        <div className="space-y-3 mb-6">
-          <h3 className="text-sm font-medium text-gray-700">Checklist before deactivation:</h3>
-          {hasRemotes ? (
-            <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-              <input type="checkbox" checked={remotesReturned} onChange={(e) => setRemotesReturned(e.target.checked)} />
-              Remote control(s) returned ({remoteCount} out)
-            </label>
-          ) : (
-            <p className="text-sm text-gray-400 flex items-center gap-2">
-              <span className="text-green-500">&#10003;</span> No remotes issued
-            </p>
-          )}
-          {hasDeposit ? (
-            <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-              <input type="checkbox" checked={depositRefunded} onChange={(e) => setDepositRefunded(e.target.checked)} />
-              Deposit refunded
-            </label>
-          ) : (
-            <p className="text-sm text-gray-400 flex items-center gap-2">
-              <span className="text-green-500">&#10003;</span> No deposit held
-            </p>
-          )}
-        </div>
-        <div className="flex justify-end gap-3">
-          <button onClick={onCancel} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Cancel</button>
-          <button onClick={onConfirm}
-            disabled={saving || (hasRemotes && !remotesReturned) || (hasDeposit && !depositRefunded)}
-            className="px-4 py-2 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 disabled:opacity-50">
-            {saving ? "Deactivating..." : "Deactivate"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// --- Contacts sub-row ---
-function ContactsSubRow({
-  tenant,
-  onChanged,
-  onError,
-}: {
-  tenant: Tenant;
-  onChanged: () => void;
-  onError: (msg: string) => void;
-}) {
-  const contacts = tenant.torrinha_tenant_contacts ?? [];
-  const [showAdd, setShowAdd] = useState(false);
-  const [addForm, setAddForm] = useState({ label: "", name: "", email: "", phone: "", receives_emails: false, notes: "" });
-  const [saving, setSaving] = useState(false);
-
-  function setAdd(field: string, value: string | boolean) {
-    setAddForm((f) => ({ ...f, [field]: value }));
-  }
-
-  async function handleAdd(e: React.FormEvent) {
-    e.preventDefault();
-    setSaving(true);
-    const res = await fetch("/api/tenant-contacts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tenant_id: tenant.id, ...addForm }),
-    });
-    if (res.ok) {
-      setShowAdd(false);
-      setAddForm({ label: "", name: "", email: "", phone: "", receives_emails: false, notes: "" });
-      onChanged();
-    } else {
-      const data = await res.json().catch(() => ({}));
-      onError(data.error || "Failed to add contact");
-    }
-    setSaving(false);
-  }
-
-  async function handleToggleEmails(contact: TenantContact) {
-    await fetch("/api/tenant-contacts", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: contact.id, receives_emails: !contact.receives_emails }),
-    });
-    onChanged();
-  }
-
-  async function handleDelete(id: string) {
-    const res = await fetch(`/api/tenant-contacts?id=${id}`, { method: "DELETE" });
-    if (res.ok) {
-      onChanged();
-    } else {
-      const data = await res.json().catch(() => ({}));
-      onError(data.error || "Failed to delete contact");
-    }
-  }
-
-  return (
-    <div>
-      <p className="text-xs font-medium text-gray-500 mb-2 uppercase tracking-wide">Additional contacts</p>
-      {contacts.length > 0 ? (
-        <table className="text-xs w-full mb-2">
-          <thead>
-            <tr className="text-gray-400">
-              <th className="text-left pb-1 font-medium pr-4">Label</th>
-              <th className="text-left pb-1 font-medium pr-4">Name</th>
-              <th className="text-left pb-1 font-medium pr-4">Email</th>
-              <th className="text-left pb-1 font-medium pr-4">Phone</th>
-              <th className="text-left pb-1 font-medium pr-4">CC emails</th>
-              <th className="text-left pb-1 font-medium pr-4">Notes</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {contacts.map((c) => (
-              <tr key={c.id} className="border-t border-gray-100">
-                <td className="py-1.5 pr-4 text-gray-500">{c.label || "—"}</td>
-                <td className="py-1.5 pr-4 text-gray-900 font-medium">{c.name}</td>
-                <td className="py-1.5 pr-4 text-gray-500">{c.email || "—"}</td>
-                <td className="py-1.5 pr-4 text-gray-500">{c.phone || "—"}</td>
-                <td className="py-1.5 pr-4">
-                  <input
-                    type="checkbox"
-                    checked={c.receives_emails}
-                    onChange={() => handleToggleEmails(c)}
-                    className="accent-blue-600"
-                    title="CC on tenant emails"
-                  />
-                </td>
-                <td className="py-1.5 pr-4 text-gray-400">{c.notes || "—"}</td>
-                <td className="py-1.5">
-                  <button
-                    onClick={() => handleDelete(c.id)}
-                    className="text-red-400 hover:text-red-600"
-                    title="Delete contact"
-                  >
-                    ✕
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      ) : (
-        <p className="text-xs text-gray-400 mb-2">No contacts yet.</p>
-      )}
-
-      {showAdd ? (
-        <form onSubmit={handleAdd} className="flex flex-wrap items-end gap-2 mt-1">
-          <input placeholder="Label (e.g. spouse)" value={addForm.label} onChange={(e) => setAdd("label", e.target.value)}
-            className="px-2 py-1 border border-gray-300 rounded text-xs w-28" />
-          <input placeholder="Name *" value={addForm.name} onChange={(e) => setAdd("name", e.target.value)} required
-            className="px-2 py-1 border border-gray-300 rounded text-xs w-32" />
-          <input type="email" placeholder="Email" value={addForm.email} onChange={(e) => setAdd("email", e.target.value)}
-            className="px-2 py-1 border border-gray-300 rounded text-xs w-40" />
-          <input type="tel" placeholder="Phone" value={addForm.phone} onChange={(e) => setAdd("phone", e.target.value)}
-            className="px-2 py-1 border border-gray-300 rounded text-xs w-28" />
-          <label className="flex items-center gap-1 text-xs text-gray-600">
-            <input type="checkbox" checked={addForm.receives_emails} onChange={(e) => setAdd("receives_emails", e.target.checked)} className="accent-blue-600" />
-            CC emails
-          </label>
-          <input placeholder="Notes" value={addForm.notes} onChange={(e) => setAdd("notes", e.target.value)}
-            className="px-2 py-1 border border-gray-300 rounded text-xs w-32" />
-          <button type="submit" disabled={saving}
-            className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 disabled:opacity-50">
-            {saving ? "…" : "Add"}
-          </button>
-          <button type="button" onClick={() => setShowAdd(false)}
-            className="px-3 py-1 text-xs text-gray-500 hover:text-gray-700">
-            Cancel
-          </button>
-        </form>
-      ) : (
-        <button onClick={() => setShowAdd(true)} className="text-xs text-blue-600 hover:text-blue-800 hover:underline">
-          + Add contact
-        </button>
-      )}
-    </div>
-  );
-}
-
-// --- Portal link copy-to-clipboard cell ---
-function PortalLinkCell({ token }: { token: string | null }) {
-  const [copied, setCopied] = useState(false);
-  if (!token) return <span className="text-xs text-gray-300">—</span>;
-  const url = typeof window !== "undefined" ? `${window.location.origin}/tenant/${token}` : `/tenant/${token}`;
-  const shortToken = `${token.slice(0, 6)}…${token.slice(-4)}`;
-  async function handleCopy() {
-    try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* non-HTTPS */ }
-  }
-  return (
-    <div className="flex items-center gap-1">
-      <a href={`/tenant/${token}`} target="_blank" rel="noreferrer"
-        className="text-xs text-blue-600 hover:underline font-mono" title={url}>{shortToken}</a>
-      <button onClick={handleCopy} className="text-xs text-gray-400 hover:text-gray-700 px-1 rounded" title="Copy portal URL">
-        {copied ? "✓" : "📋"}
-      </button>
+    <div className="flex items-start gap-3">
+      <label className="w-24 shrink-0 text-sm text-gray-500 pt-1.5">{label}</label>
+      <div className="flex-1 min-w-0">{children}</div>
     </div>
   );
 }
