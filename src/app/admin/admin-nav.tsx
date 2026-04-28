@@ -38,10 +38,10 @@ export default function AdminNav() {
           <Link
             key={link.href}
             href={link.href}
-            className={`px-3 py-1.5 rounded text-sm ${
+            className={`px-3 py-1.5 rounded-[var(--t-radius-sm)] text-sm transition-colors ${
               isActive
-                ? "bg-blue-50 text-blue-700 font-medium"
-                : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                ? "bg-t-accent-light text-t-accent-text font-medium"
+                : "text-t-text-muted hover:text-t-text hover:bg-t-accent-light"
             }`}
           >
             {link.label}
@@ -50,7 +50,7 @@ export default function AdminNav() {
       })}
       <button
         onClick={handleLogout}
-        className="ml-4 px-3 py-1.5 text-sm text-gray-500 hover:text-gray-700"
+        className="ml-4 px-3 py-1.5 text-sm text-t-text-muted hover:text-t-text transition-colors"
       >
         Sign out
       </button>

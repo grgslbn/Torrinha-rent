@@ -32,19 +32,25 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="min-h-screen flex items-center justify-center bg-t-bg">
       <div className="w-full max-w-sm">
-        <h1 className="text-2xl font-bold text-center mb-8 text-gray-900">
+        <h1 className="text-2xl font-bold tracking-tight text-center mb-8 text-t-text">
           Torrinha Parking
         </h1>
-        <form onSubmit={handleLogin} className="bg-white p-8 rounded-lg shadow">
+        <form
+          onSubmit={handleLogin}
+          className="bg-t-surface p-8 rounded-[var(--t-radius-lg)] border border-t-border"
+        >
           {error && (
-            <div className="mb-4 p-3 bg-red-50 text-red-700 rounded text-sm">
+            <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-[var(--t-radius-sm)] text-sm">
               {error}
             </div>
           )}
           <div className="mb-4">
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+            <label
+              htmlFor="email"
+              className="block text-sm font-medium text-t-text mb-1"
+            >
               Email
             </label>
             <input
@@ -53,11 +59,14 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900"
+              className="w-full px-3 py-2 border border-t-border rounded-[var(--t-radius-md)] text-t-text text-sm focus:outline-none focus:ring-1 focus:ring-t-accent"
             />
           </div>
           <div className="mb-6">
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+            <label
+              htmlFor="password"
+              className="block text-sm font-medium text-t-text mb-1"
+            >
               Password
             </label>
             <input
@@ -66,15 +75,15 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900"
+              className="w-full px-3 py-2 border border-t-border rounded-[var(--t-radius-md)] text-t-text text-sm focus:outline-none focus:ring-1 focus:ring-t-accent"
             />
           </div>
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2 px-4 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+            className="w-full py-2 px-4 bg-t-accent text-white rounded-[var(--t-radius-md)] hover:bg-t-accent-hover disabled:opacity-50 text-sm font-medium transition-colors"
           >
-            {loading ? "Signing in..." : "Sign in"}
+            {loading ? "Signing in…" : "Sign in"}
           </button>
         </form>
       </div>

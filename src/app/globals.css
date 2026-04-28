@@ -1,26 +1,37 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --t-bg: #faf9f6;
+  --t-surface: #ffffff;
+  --t-text: #111111;
+  --t-text-muted: #6b7280;
+  --t-accent: #ff5600;
+  --t-accent-hover: #e64d00;
+  --t-accent-light: #fff4ee;
+  --t-accent-text: #c44000;
+  --t-border: #dedbd6;
+  --t-border-strong: #d3cec6;
+  --t-radius-sm: 4px;
+  --t-radius-md: 6px;
+  --t-radius-lg: 8px;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --color-t-bg: var(--t-bg);
+  --color-t-surface: var(--t-surface);
+  --color-t-text: var(--t-text);
+  --color-t-text-muted: var(--t-text-muted);
+  --color-t-accent: var(--t-accent);
+  --color-t-accent-hover: var(--t-accent-hover);
+  --color-t-accent-light: var(--t-accent-light);
+  --color-t-accent-text: var(--t-accent-text);
+  --color-t-border: var(--t-border);
+  --color-t-border-strong: var(--t-border-strong);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--t-bg);
+  color: var(--t-text);
 }
