@@ -32,6 +32,7 @@ export default function SpotAssignmentSection({
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [loading, setLoading] = useState(true);
   const [endDates, setEndDates] = useState<Record<string, string>>({});
+  const [endDateModes, setEndDateModes] = useState<Record<string, "running" | "set">>({});
   const [savingId, setSavingId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
 
@@ -43,8 +44,13 @@ export default function SpotAssignmentSection({
       const data: Assignment[] = await res.json();
       setAssignments(data);
       const dates: Record<string, string> = {};
-      for (const a of data) dates[a.id] = a.end_date ?? "";
+      const modes: Record<string, "running" | "set"> = {};
+      for (const a of data) {
+        dates[a.id] = a.end_date ?? "";
+        modes[a.id] = a.end_date ? "set" : "running";
+      }
       setEndDates(dates);
+      setEndDateModes(modes);
     }
     setLoading(false);
   }, [tenant.id]);
@@ -52,7 +58,8 @@ export default function SpotAssignmentSection({
   useEffect(() => { fetchAssignments(); }, [fetchAssignments]);
 
   async function saveEndDate(a: Assignment) {
-    const end_date = endDates[a.id] || null;
+    const mode = endDateModes[a.id] ?? "running";
+    const end_date = mode === "running" ? null : (endDates[a.id] || null);
     setSavingId(a.id);
     const res = await fetch("/api/spot-assignments", {
       method: "PATCH",
@@ -94,7 +101,10 @@ export default function SpotAssignmentSection({
       {current.map((a) => {
         const spotData = allSpots.find((s) => s.id === a.spot_id);
         const incoming = spotData?.incoming_tenant;
-        const endDateChanged = endDates[a.id] !== (a.end_date ?? "");
+        const mode = endDateModes[a.id] ?? (a.end_date ? "set" : "running");
+        const effectiveDate = mode === "running" ? null : (endDates[a.id] || null);
+        const hasPendingChange =
+          mode === "running" ? a.end_date !== null : endDates[a.id] !== (a.end_date ?? "");
 
         return (
           <div key={a.id} className="border border-gray-200 rounded-lg p-3 space-y-2.5">
@@ -108,16 +118,46 @@ export default function SpotAssignmentSection({
               </span>
             </div>
 
-            <div className="flex items-center gap-2 flex-wrap">
-              <label className="text-sm text-gray-500 w-20 shrink-0">End date</label>
-              <input
-                type="date"
-                value={endDates[a.id] ?? ""}
-                min={a.start_date}
-                onChange={(e) => setEndDates((d) => ({ ...d, [a.id]: e.target.value }))}
-                className="px-2 py-1 border border-gray-200 rounded text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              />
-              {endDateChanged && (
+            <div className="flex items-center gap-4 flex-wrap">
+              <span className="text-sm text-gray-500 shrink-0">End date</span>
+
+              <label className="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer">
+                <input
+                  type="radio"
+                  name={`end-${a.id}`}
+                  checked={mode === "running"}
+                  onChange={() =>
+                    setEndDateModes((m) => ({ ...m, [a.id]: "running" }))
+                  }
+                  className="accent-blue-600"
+                />
+                Running
+              </label>
+
+              <label className="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer">
+                <input
+                  type="radio"
+                  name={`end-${a.id}`}
+                  checked={mode === "set"}
+                  onChange={() =>
+                    setEndDateModes((m) => ({ ...m, [a.id]: "set" }))
+                  }
+                  className="accent-blue-600"
+                />
+                Set date
+              </label>
+
+              {mode === "set" && (
+                <input
+                  type="date"
+                  value={endDates[a.id] ?? ""}
+                  min={a.start_date}
+                  onChange={(e) => setEndDates((d) => ({ ...d, [a.id]: e.target.value }))}
+                  className="px-2 py-1 border border-gray-200 rounded text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              )}
+
+              {hasPendingChange && (
                 <button
                   onClick={() => saveEndDate(a)}
                   disabled={savingId === a.id}
@@ -126,8 +166,9 @@ export default function SpotAssignmentSection({
                   {savingId === a.id ? "Saving…" : "Save"}
                 </button>
               )}
-              {!endDateChanged && a.end_date && (
-                <span className="text-xs text-amber-600">Leaving {a.end_date}</span>
+
+              {!hasPendingChange && effectiveDate && (
+                <span className="text-xs text-amber-600">Leaving {effectiveDate}</span>
               )}
             </div>
 
