@@ -63,14 +63,14 @@ const STATUS_BADGE: Record<string, string> = {
 };
 
 function spotColor(spot: SpotData): string {
-  if (spot.label === "Owner") return "bg-gray-200 text-gray-500";
-  if (!spot.tenant_id) return "bg-gray-100 text-gray-400 border-gray-200";
+  if (spot.label === "Owner") return "bg-t-border text-t-text-muted";
+  if (!spot.tenant_id) return "bg-t-bg text-t-text-muted border-t-border";
   const s = spot.payment_status;
   if (s === "paid") return "bg-green-100 text-green-800 border-green-300";
   if (s === "overdue") return "bg-red-100 text-red-800 border-red-300";
   if (s === "pending" && spot.reminder_sent) return "bg-amber-100 text-amber-800 border-amber-300";
-  if (s === "pending") return "bg-blue-50 text-blue-700 border-blue-200";
-  return "bg-blue-50 text-blue-700 border-blue-200";
+  if (s === "pending") return "bg-t-accent-light text-t-accent-text border-t-border";
+  return "bg-t-accent-light text-t-accent-text border-t-border";
 }
 
 function spotStatusLabel(spot: SpotData): string {
@@ -177,7 +177,7 @@ export default function DashboardClient({
                     {spot.tenant_name && !isOwner(spot) && (
                       <span className="block text-xs truncate opacity-70">{spot.tenant_name}</span>
                     )}
-                    {isOwner(spot) && <span className="block text-xs text-gray-400">Owner</span>}
+                    {isOwner(spot) && <span className="block text-xs text-t-text-muted">Owner</span>}
                     {!spot.tenant_id && !isOwner(spot) && <span className="block text-xs opacity-50">Vacant</span>}
                   </button>
                 );
@@ -187,11 +187,11 @@ export default function DashboardClient({
             {/* Legend */}
             <div className="flex flex-wrap gap-3 mt-3 text-xs text-t-text-muted">
               <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-green-100 border border-green-300 inline-block" /> Paid</span>
-              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-blue-50 border border-blue-200 inline-block" /> Pending</span>
+              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-t-accent-light border border-t-border inline-block" /> Pending</span>
               <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-amber-100 border border-amber-300 inline-block" /> Reminder sent</span>
               <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-red-100 border border-red-300 inline-block" /> Overdue</span>
-              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-gray-100 border border-gray-200 inline-block" /> Vacant</span>
-              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-gray-200 inline-block" /> Owner</span>
+              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-t-bg border border-t-border inline-block" /> Vacant</span>
+              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-t-border inline-block" /> Owner</span>
               <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-t-accent inline-block" /> Incoming tenant</span>
             </div>
           </div>
@@ -210,13 +210,13 @@ export default function DashboardClient({
                 <p>
                   <span className="font-medium text-t-text">Status:</span>{" "}
                   <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium ${
-                    STATUS_BADGE[activeSpot.payment_status ?? ""] ?? "bg-gray-100 text-gray-500"
+                    STATUS_BADGE[activeSpot.payment_status ?? ""] ?? "bg-t-bg text-t-text-muted"
                   }`}>{spotStatusLabel(activeSpot)}</span>
                 </p>
                 {activeSpot.incoming_tenant && (
-                  <p className="mt-1 pt-1 border-t border-t-border text-blue-700">
+                  <p className="mt-1 pt-1 border-t border-t-border text-t-accent-text">
                     <span className="font-medium">Incoming:</span> {activeSpot.incoming_tenant.name}{" "}
-                    <span className="text-blue-500">from {activeSpot.incoming_tenant.start_date}</span>
+                    <span className="text-t-accent">from {activeSpot.incoming_tenant.start_date}</span>
                   </p>
                 )}
               </div>
@@ -238,7 +238,7 @@ export default function DashboardClient({
                         <tr key={h.month} className="border-b border-t-border">
                           <td className="py-1 text-t-text">{formatMonth(h.month)}</td>
                           <td className="py-1">
-                            <span className={`px-1 py-0.5 rounded text-xs font-medium ${STATUS_BADGE[h.status] ?? "bg-gray-100 text-gray-500"}`}>{h.status}</span>
+                            <span className={`px-1 py-0.5 rounded text-xs font-medium ${STATUS_BADGE[h.status] ?? "bg-t-bg text-t-text-muted"}`}>{h.status}</span>
                           </td>
                           <td className="py-1 text-right text-t-text-muted">{h.paid_date ?? "—"}</td>
                         </tr>
@@ -284,7 +284,7 @@ export default function DashboardClient({
                   return (
                     <td key={m} className="py-2 px-2 text-center">
                       {status ? (
-                        <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium ${STATUS_BADGE[status] ?? "bg-gray-100 text-gray-500"}`}>
+                        <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium ${STATUS_BADGE[status] ?? "bg-t-bg text-t-text-muted"}`}>
                           {status}
                         </span>
                       ) : (

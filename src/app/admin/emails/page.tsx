@@ -138,30 +138,30 @@ export default function EmailsPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Email Templates</h1>
+        <h1 className="text-2xl font-bold text-t-text">Email Templates</h1>
         <Link
           href="/admin/emails/templates"
-          className="px-3 py-1.5 text-xs bg-gray-700 text-white rounded-md hover:bg-gray-800"
+          className="px-3 py-1.5 text-xs bg-t-text text-white rounded-[var(--t-radius-sm)] hover:opacity-80"
         >
           Edit Templates
         </Link>
       </div>
 
       {/* Section 1 — Email Preview */}
-      <div className="bg-white rounded-lg shadow p-5 mb-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">
+      <div className="bg-t-surface border border-t-border rounded-[var(--t-radius-lg)] p-5 mb-6">
+        <h2 className="text-lg font-semibold text-t-text mb-4">
           Email Preview
         </h2>
 
         <div className="flex flex-wrap gap-4 mb-6">
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">
+            <label className="block text-xs font-medium text-t-text-muted mb-1">
               Template
             </label>
             <select
               value={template}
               onChange={(e) => setTemplate(e.target.value as Template)}
-              className="px-3 py-1.5 border border-gray-300 rounded text-sm text-gray-900 min-w-[280px]"
+              className="px-3 py-1.5 border border-t-border rounded-[var(--t-radius-sm)] text-sm text-t-text min-w-[280px]"
             >
               {TEMPLATES.map((t) => (
                 <option key={t.value} value={t.value}>
@@ -171,17 +171,17 @@ export default function EmailsPage() {
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">
+            <label className="block text-xs font-medium text-t-text-muted mb-1">
               Language
             </label>
-            <div className="flex rounded overflow-hidden border border-gray-300">
+            <div className="flex rounded overflow-hidden border border-t-border">
               <button
                 type="button"
                 onClick={() => setLanguage("pt")}
                 className={`px-4 py-1.5 text-sm font-medium ${
                   language === "pt"
-                    ? "bg-blue-600 text-white"
-                    : "bg-white text-gray-700 hover:bg-gray-50"
+                    ? "bg-t-accent text-white"
+                    : "bg-t-surface text-t-text-secondary hover:bg-t-bg"
                 }`}
               >
                 PT
@@ -189,10 +189,10 @@ export default function EmailsPage() {
               <button
                 type="button"
                 onClick={() => setLanguage("en")}
-                className={`px-4 py-1.5 text-sm font-medium border-l border-gray-300 ${
+                className={`px-4 py-1.5 text-sm font-medium border-l border-t-border ${
                   language === "en"
-                    ? "bg-blue-600 text-white"
-                    : "bg-white text-gray-700 hover:bg-gray-50"
+                    ? "bg-t-accent text-white"
+                    : "bg-t-surface text-t-text-secondary hover:bg-t-bg"
                 }`}
               >
                 EN
@@ -202,24 +202,24 @@ export default function EmailsPage() {
         </div>
 
         {/* Preview panel */}
-        <div className="border border-gray-200 rounded-lg overflow-hidden">
+        <div className="border border-t-border rounded-[var(--t-radius-lg)] overflow-hidden">
           {/* Email header */}
-          <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
-            <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
-              <span className="font-medium text-gray-700">From:</span>
+          <div className="bg-t-bg px-4 py-3 border-b border-t-border">
+            <div className="flex items-center gap-2 text-xs text-t-text-muted mb-1">
+              <span className="font-medium text-t-text-secondary">From:</span>
               noreply@torrinha.com
             </div>
-            <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
-              <span className="font-medium text-gray-700">To:</span>
+            <div className="flex items-center gap-2 text-xs text-t-text-muted mb-2">
+              <span className="font-medium text-t-text-secondary">To:</span>
               joao.silva@example.com
             </div>
-            <p className="text-sm font-semibold text-gray-900">
+            <p className="text-sm font-semibold text-t-text">
               {preview.subject}
             </p>
           </div>
           {/* Email body */}
-          <div className="px-4 py-4 bg-white">
-            <pre className="text-sm text-gray-700 whitespace-pre-wrap font-sans leading-relaxed">
+          <div className="px-4 py-4 bg-t-surface">
+            <pre className="text-sm text-t-text-secondary whitespace-pre-wrap font-sans leading-relaxed">
               {preview.body}
             </pre>
           </div>
@@ -227,18 +227,18 @@ export default function EmailsPage() {
       </div>
 
       {/* Section 2 — Send Test Email */}
-      <div className="bg-white rounded-lg shadow p-5">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">
+      <div className="bg-t-surface border border-t-border rounded-[var(--t-radius-lg)] p-5">
+        <h2 className="text-lg font-semibold text-t-text mb-4">
           Send Test Email
         </h2>
-        <p className="text-sm text-gray-500 mb-4">
+        <p className="text-sm text-t-text-muted mb-4">
           Send the previewed template above to a real email address. This always
           sends to the specified recipient regardless of EMAIL_DRY_RUN.
         </p>
 
         <form onSubmit={handleSend} className="flex items-end gap-3">
           <div className="flex-1 max-w-md">
-            <label className="block text-xs font-medium text-gray-600 mb-1">
+            <label className="block text-xs font-medium text-t-text-muted mb-1">
               Recipient
             </label>
             <input
@@ -247,13 +247,13 @@ export default function EmailsPage() {
               onChange={(e) => setRecipient(e.target.value)}
               required
               placeholder="you@example.com"
-              className="w-full px-3 py-1.5 border border-gray-300 rounded text-sm text-gray-900"
+              className="w-full px-3 py-1.5 border border-t-border rounded-[var(--t-radius-sm)] text-sm text-t-text"
             />
           </div>
           <button
             type="submit"
             disabled={sending || !recipient}
-            className="px-4 py-1.5 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50"
+            className="px-4 py-1.5 bg-t-accent text-white text-sm rounded-[var(--t-radius-sm)] hover:bg-t-accent-hover disabled:opacity-50"
           >
             {sending ? "Sending..." : "Send test email"}
           </button>

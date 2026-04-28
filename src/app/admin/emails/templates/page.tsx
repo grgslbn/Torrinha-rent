@@ -71,7 +71,6 @@ export default function TemplatesPage() {
     if (res.ok) {
       setSaved(true);
       await fetchTemplates();
-      // Update selected with new values
       setSelected((prev) =>
         prev ? { ...prev, subject: editSubject, body: editBody } : null
       );
@@ -89,7 +88,7 @@ export default function TemplatesPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Email Templates</h1>
+        <h1 className="text-2xl font-bold text-t-text">Email Templates</h1>
       </div>
 
       {error && (
@@ -105,23 +104,23 @@ export default function TemplatesPage() {
         {/* Left: template list */}
         <div className="w-1/3 shrink-0">
           {loading ? (
-            <div className="text-center py-12 text-gray-500">Loading...</div>
+            <div className="text-center py-12 text-t-text-muted">Loading...</div>
           ) : (
-            <div className="bg-white rounded-lg shadow divide-y divide-gray-200">
+            <div className="bg-t-surface border border-t-border rounded-[var(--t-radius-lg)] divide-y divide-t-border">
               {templates.map((t) => (
                 <button
                   key={t.id}
                   onClick={() => selectTemplate(t)}
-                  className={`w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors ${
-                    selected?.id === t.id ? "bg-blue-50" : ""
+                  className={`w-full text-left px-4 py-3 hover:bg-t-bg transition-colors ${
+                    selected?.id === t.id ? "bg-t-accent-light" : ""
                   }`}
                 >
-                  <p className="text-sm font-medium text-gray-900">
+                  <p className="text-sm font-medium text-t-text">
                     {t.label}
                   </p>
-                  <p className="text-xs text-gray-400 mt-0.5">
+                  <p className="text-xs text-t-text-muted mt-0.5">
                     {t.key}
-                    <span className="ml-2 px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 text-xs">
+                    <span className="ml-2 px-1.5 py-0.5 rounded bg-t-bg text-t-text-muted text-xs">
                       {t.language.toUpperCase()}
                     </span>
                   </p>
@@ -133,21 +132,21 @@ export default function TemplatesPage() {
 
         {/* Right: editor */}
         {selected ? (
-          <div className="flex-1 bg-white rounded-lg shadow p-5 flex flex-col">
+          <div className="flex-1 bg-t-surface border border-t-border rounded-[var(--t-radius-lg)] p-5 flex flex-col">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-lg font-semibold text-gray-900">
+                <h2 className="text-lg font-semibold text-t-text">
                   {selected.label}
                 </h2>
-                <p className="text-xs text-gray-400">{selected.key}</p>
+                <p className="text-xs text-t-text-muted">{selected.key}</p>
               </div>
-              <span className="px-2 py-0.5 rounded bg-gray-100 text-gray-600 text-xs font-medium">
+              <span className="px-2 py-0.5 rounded bg-t-bg text-t-text-muted text-xs font-medium">
                 {selected.language.toUpperCase()}
               </span>
             </div>
 
             <div className="mb-4">
-              <label className="block text-xs font-medium text-gray-600 mb-1">
+              <label className="block text-xs font-medium text-t-text-muted mb-1">
                 Subject
               </label>
               <input
@@ -157,12 +156,12 @@ export default function TemplatesPage() {
                   setEditSubject(e.target.value);
                   setSaved(false);
                 }}
-                className="w-full px-3 py-1.5 border border-gray-300 rounded text-sm text-gray-900"
+                className="w-full px-3 py-1.5 border border-t-border rounded-[var(--t-radius-sm)] text-sm text-t-text"
               />
             </div>
 
             <div className="mb-3 flex-1 flex flex-col">
-              <label className="block text-xs font-medium text-gray-600 mb-1">
+              <label className="block text-xs font-medium text-t-text-muted mb-1">
                 Body
               </label>
               <textarea
@@ -171,14 +170,14 @@ export default function TemplatesPage() {
                   setEditBody(e.target.value);
                   setSaved(false);
                 }}
-                className="flex-1 w-full px-3 py-2 border border-gray-300 rounded text-sm text-gray-900 font-mono"
+                className="flex-1 w-full px-3 py-2 border border-t-border rounded-[var(--t-radius-sm)] text-sm text-t-text font-mono"
                 style={{ minHeight: "250px" }}
               />
             </div>
 
-            <p className="text-xs text-gray-400 mb-4">
+            <p className="text-xs text-t-text-muted mb-4">
               Available placeholders:{" "}
-              <code className="bg-gray-100 px-1 rounded">
+              <code className="bg-t-bg px-1 rounded">
                 {PLACEHOLDER_HINTS[selected.key] || "{{tenant_name}}, {{amount}}, {{month}}"}
               </code>
             </p>
@@ -187,7 +186,7 @@ export default function TemplatesPage() {
               <button
                 onClick={handleSave}
                 disabled={saving || !hasChanges}
-                className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50"
+                className="px-4 py-2 bg-t-accent text-white text-sm rounded-[var(--t-radius-sm)] hover:bg-t-accent-hover disabled:opacity-50"
               >
                 {saving ? "Saving..." : "Save"}
               </button>
@@ -200,7 +199,7 @@ export default function TemplatesPage() {
             </div>
           </div>
         ) : (
-          <div className="flex-1 bg-white rounded-lg shadow flex items-center justify-center text-gray-400 text-sm">
+          <div className="flex-1 bg-t-surface border border-t-border rounded-[var(--t-radius-lg)] flex items-center justify-center text-t-text-muted text-sm">
             Select a template to edit
           </div>
         )}

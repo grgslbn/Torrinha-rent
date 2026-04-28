@@ -85,7 +85,7 @@ export default function SpotAssignmentSection({
     }
   }
 
-  if (loading) return <p className="text-sm text-gray-400">Loading…</p>;
+  if (loading) return <p className="text-sm text-t-text-muted">Loading…</p>;
 
   const current = assignments.filter(
     (a) => a.start_date <= today && (!a.end_date || a.end_date > today)
@@ -107,11 +107,11 @@ export default function SpotAssignmentSection({
           mode === "running" ? a.end_date !== null : endDates[a.id] !== (a.end_date ?? "");
 
         return (
-          <div key={a.id} className="border border-gray-200 rounded-lg p-3 space-y-2.5">
+          <div key={a.id} className="border border-t-border rounded-[var(--t-radius-md)] p-3 space-y-2.5">
             <div className="flex items-center justify-between">
               <div>
-                <span className="font-medium text-gray-900">Spot {sLabel(a.torrinha_spots)}</span>
-                <span className="text-sm text-gray-400 ml-2">since {a.start_date}</span>
+                <span className="font-medium text-t-text">Spot {sLabel(a.torrinha_spots)}</span>
+                <span className="text-sm text-t-text-muted ml-2">since {a.start_date}</span>
               </div>
               <span className="text-xs px-2 py-0.5 rounded bg-green-50 text-green-700 font-medium">
                 Active
@@ -119,9 +119,9 @@ export default function SpotAssignmentSection({
             </div>
 
             <div className="flex items-center gap-4 flex-wrap">
-              <span className="text-sm text-gray-500 shrink-0">End date</span>
+              <span className="text-sm text-t-text-muted shrink-0">End date</span>
 
-              <label className="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer">
+              <label className="flex items-center gap-1.5 text-sm text-t-text-secondary cursor-pointer">
                 <input
                   type="radio"
                   name={`end-${a.id}`}
@@ -134,7 +134,7 @@ export default function SpotAssignmentSection({
                 Running
               </label>
 
-              <label className="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer">
+              <label className="flex items-center gap-1.5 text-sm text-t-text-secondary cursor-pointer">
                 <input
                   type="radio"
                   name={`end-${a.id}`}
@@ -153,7 +153,7 @@ export default function SpotAssignmentSection({
                   value={endDates[a.id] ?? ""}
                   min={a.start_date}
                   onChange={(e) => setEndDates((d) => ({ ...d, [a.id]: e.target.value }))}
-                  className="px-2 py-1 border border-gray-200 rounded text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="px-2 py-1 border border-t-border rounded-[var(--t-radius-sm)] text-sm text-t-text focus:outline-none focus:ring-1 focus:ring-t-accent"
                 />
               )}
 
@@ -173,7 +173,7 @@ export default function SpotAssignmentSection({
             </div>
 
             {incoming && (
-              <div className="text-xs bg-blue-50 text-blue-700 rounded px-2 py-1.5">
+              <div className="text-xs bg-t-accent-light text-t-accent-text rounded-[var(--t-radius-sm)] px-2 py-1.5">
                 ⚠ {incoming.tenant_name} takes over from {incoming.start_date}
               </div>
             )}
@@ -183,14 +183,14 @@ export default function SpotAssignmentSection({
 
       {/* Upcoming assignments */}
       {upcoming.map((a) => (
-        <div key={a.id} className="border border-blue-100 rounded-lg p-3 bg-blue-50">
+        <div key={a.id} className="border border-t-accent-light rounded-[var(--t-radius-md)] p-3 bg-t-accent-light">
           <div className="flex items-center justify-between">
             <div>
-              <span className="font-medium text-blue-900">→ Spot {sLabel(a.torrinha_spots)}</span>
-              <span className="text-sm text-blue-500 ml-2">from {a.start_date}</span>
+              <span className="font-medium text-t-accent-text">→ Spot {sLabel(a.torrinha_spots)}</span>
+              <span className="text-sm text-t-accent ml-2">from {a.start_date}</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-700 font-medium">
+              <span className="text-xs px-2 py-0.5 rounded bg-t-accent text-white font-medium">
                 Upcoming
               </span>
               <button
@@ -208,12 +208,12 @@ export default function SpotAssignmentSection({
       {/* Past assignments (collapsible) */}
       {past.length > 0 && (
         <details className="group">
-          <summary className="text-xs text-gray-400 cursor-pointer hover:text-gray-600 select-none">
+          <summary className="text-xs text-t-text-muted cursor-pointer hover:text-t-text select-none">
             {past.length} past assignment{past.length > 1 ? "s" : ""}
           </summary>
-          <div className="mt-2 pl-3 border-l-2 border-gray-100 space-y-1">
+          <div className="mt-2 pl-3 border-l-2 border-t-border space-y-1">
             {past.map((a) => (
-              <p key={a.id} className="text-xs text-gray-400">
+              <p key={a.id} className="text-xs text-t-text-muted">
                 Spot {sLabel(a.torrinha_spots)} · {a.start_date} → {a.end_date}
               </p>
             ))}
@@ -222,7 +222,7 @@ export default function SpotAssignmentSection({
       )}
 
       {current.length === 0 && upcoming.length === 0 && past.length === 0 && (
-        <p className="text-sm text-gray-400">No spot assignments.</p>
+        <p className="text-sm text-t-text-muted">No spot assignments.</p>
       )}
 
       {/* Add assignment */}
@@ -308,16 +308,16 @@ function AddAssignmentForm({
   }
 
   return (
-    <div className="border border-dashed border-gray-300 rounded-lg p-3 space-y-3">
-      <p className="text-sm font-medium text-gray-700">New spot assignment</p>
+    <div className="border border-dashed border-t-border rounded-[var(--t-radius-md)] p-3 space-y-3">
+      <p className="text-sm font-medium text-t-text-secondary">New spot assignment</p>
       <form onSubmit={handleSubmit} className="space-y-3">
         <div>
-          <label className="text-xs text-gray-500 block mb-1">Spot *</label>
+          <label className="text-xs text-t-text-muted block mb-1">Spot *</label>
           <select
             value={spotId}
             onChange={(e) => { setSpotId(e.target.value); setDepartingEndDate(""); }}
             required
-            className="w-full px-2 py-1.5 border border-gray-200 rounded text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="w-full px-2 py-1.5 border border-t-border rounded-[var(--t-radius-sm)] text-sm text-t-text focus:outline-none focus:ring-1 focus:ring-t-accent"
           >
             <option value="">— select —</option>
             {allSpots.map((s) => (
@@ -328,11 +328,11 @@ function AddAssignmentForm({
           </select>
         </div>
         <div>
-          <label className="text-xs text-gray-500 block mb-1">Start date *</label>
+          <label className="text-xs text-t-text-muted block mb-1">Start date *</label>
           <input
             type="date" value={startDate}
             onChange={(e) => setStartDate(e.target.value)} required
-            className="w-full px-2 py-1.5 border border-gray-200 rounded text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 w-40"
+            className="w-full px-2 py-1.5 border border-t-border rounded-[var(--t-radius-sm)] text-sm text-t-text focus:outline-none focus:ring-1 focus:ring-t-accent w-40"
           />
         </div>
         {isOccupied && (
@@ -350,11 +350,11 @@ function AddAssignmentForm({
         )}
         <div className="flex gap-2">
           <button type="submit" disabled={saving}
-            className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50">
+            className="px-3 py-1.5 bg-t-accent text-white text-sm rounded-[var(--t-radius-sm)] hover:bg-t-accent-hover disabled:opacity-50">
             {saving ? "Adding…" : "Add"}
           </button>
           <button type="button" onClick={onCancel}
-            className="px-3 py-1.5 text-sm text-gray-500 hover:text-gray-700">
+            className="px-3 py-1.5 text-sm text-t-text-muted hover:text-t-text">
             Cancel
           </button>
         </div>

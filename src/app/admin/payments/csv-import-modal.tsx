@@ -123,9 +123,7 @@ export default function CsvImportModal({ onClose, onMatchesReady }: Props) {
         const amount = parseFloat(amountStr.replace(/[^\d.,-]/g, "").replace(",", "."));
         const dateStr = row[mapping.date] ?? "";
 
-        // Try to parse date into YYYY-MM for range check
         let monthStr = "";
-        // Try YYYY-MM-DD, DD/MM/YYYY, DD-MM-YYYY
         const isoMatch = dateStr.match(/(\d{4})-(\d{2})/);
         const euMatch = dateStr.match(/(\d{2})[/.-](\d{2})[/.-](\d{4})/);
         if (isoMatch) {
@@ -145,9 +143,7 @@ export default function CsvImportModal({ onClose, onMatchesReady }: Props) {
         };
       })
       .filter((r) => {
-        // Only positive amounts (credits)
         if (isNaN(r.amount) || r.amount <= 0) return false;
-        // Date range filter
         if (r.monthStr && (r.monthStr < rangeFrom || r.monthStr > rangeTo)) return false;
         return true;
       })
@@ -195,11 +191,11 @@ export default function CsvImportModal({ onClose, onMatchesReady }: Props) {
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[85vh] flex flex-col">
+      <div className="bg-t-surface border border-t-border rounded-[var(--t-radius-lg)] shadow-lg max-w-4xl w-full mx-4 max-h-[85vh] flex flex-col">
         {/* Header */}
-        <div className="p-5 border-b border-gray-200 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-gray-900">Import Bank Statement</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+        <div className="p-5 border-b border-t-border flex items-center justify-between">
+          <h2 className="text-lg font-bold text-t-text">Import Bank Statement</h2>
+          <button onClick={onClose} className="text-t-text-muted hover:text-t-text text-xl">&times;</button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-5">
@@ -213,7 +209,7 @@ export default function CsvImportModal({ onClose, onMatchesReady }: Props) {
           {/* Step 1: Upload */}
           {step === "upload" && (
             <div className="text-center py-8">
-              <p className="text-sm text-gray-600 mb-4">
+              <p className="text-sm text-t-text-secondary mb-4">
                 Upload a CSV or XLSX bank statement from Cr&eacute;dito Agr&iacute;cola
               </p>
               <input
@@ -225,11 +221,11 @@ export default function CsvImportModal({ onClose, onMatchesReady }: Props) {
               />
               <button
                 onClick={() => fileRef.current?.click()}
-                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+                className="px-6 py-3 bg-t-accent text-white rounded-[var(--t-radius-lg)] hover:bg-t-accent-hover text-sm font-medium"
               >
                 Choose File
               </button>
-              <p className="text-xs text-gray-400 mt-3">Supports .csv, .xlsx, .xls</p>
+              <p className="text-xs text-t-text-muted mt-3">Supports .csv, .xlsx, .xls</p>
             </div>
           )}
 
@@ -238,7 +234,7 @@ export default function CsvImportModal({ onClose, onMatchesReady }: Props) {
             <>
               {/* Date range filter */}
               <div className="mb-5">
-                <label className="block text-xs font-medium text-gray-600 mb-1">
+                <label className="block text-xs font-medium text-t-text-muted mb-1">
                   Import date range
                 </label>
                 <div className="flex items-center gap-2 text-sm">
@@ -246,29 +242,29 @@ export default function CsvImportModal({ onClose, onMatchesReady }: Props) {
                     type="month"
                     value={rangeFrom}
                     onChange={(e) => setRangeFrom(e.target.value)}
-                    className="px-2 py-1.5 border border-gray-300 rounded text-sm text-gray-900"
+                    className="px-2 py-1.5 border border-t-border rounded-[var(--t-radius-sm)] text-sm text-t-text"
                   />
-                  <span className="text-gray-400">to</span>
+                  <span className="text-t-text-muted">to</span>
                   <input
                     type="month"
                     value={rangeTo}
                     onChange={(e) => setRangeTo(e.target.value)}
-                    className="px-2 py-1.5 border border-gray-300 rounded text-sm text-gray-900"
+                    className="px-2 py-1.5 border border-t-border rounded-[var(--t-radius-sm)] text-sm text-t-text"
                   />
                 </div>
               </div>
 
               {/* Column mapping */}
               <div className="mb-5">
-                <h3 className="text-sm font-semibold text-gray-900 mb-2">Column Mapping</h3>
+                <h3 className="text-sm font-semibold text-t-text mb-2">Column Mapping</h3>
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                   {(Object.keys(FIELD_LABELS) as (keyof ColumnMapping)[]).map((field) => (
                     <div key={field}>
-                      <label className="block text-xs text-gray-500 mb-1">{FIELD_LABELS[field]}</label>
+                      <label className="block text-xs text-t-text-muted mb-1">{FIELD_LABELS[field]}</label>
                       <select
                         value={mapping[field]}
                         onChange={(e) => setMapping((m) => ({ ...m, [field]: e.target.value }))}
-                        className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs text-gray-900"
+                        className="w-full px-2 py-1.5 border border-t-border rounded-[var(--t-radius-sm)] text-xs text-t-text"
                       >
                         <option value="">— select —</option>
                         {columns.map((col) => (
@@ -282,15 +278,15 @@ export default function CsvImportModal({ onClose, onMatchesReady }: Props) {
 
               {/* Preview */}
               <div className="mb-5">
-                <h3 className="text-sm font-semibold text-gray-900 mb-2">
+                <h3 className="text-sm font-semibold text-t-text mb-2">
                   Preview (first 3 rows)
                 </h3>
-                <div className="overflow-x-auto border border-gray-200 rounded">
+                <div className="overflow-x-auto border border-t-border rounded-[var(--t-radius-md)]">
                   <table className="min-w-full text-xs">
-                    <thead className="bg-gray-50">
+                    <thead className="bg-t-bg">
                       <tr>
                         {columns.map((col) => (
-                          <th key={col} className="px-3 py-2 text-left font-medium text-gray-500 whitespace-nowrap">
+                          <th key={col} className="px-3 py-2 text-left font-medium text-t-text-muted whitespace-nowrap">
                             {col}
                           </th>
                         ))}
@@ -298,9 +294,9 @@ export default function CsvImportModal({ onClose, onMatchesReady }: Props) {
                     </thead>
                     <tbody>
                       {previewRows.map((row, i) => (
-                        <tr key={i} className="border-t border-gray-100">
+                        <tr key={i} className="border-t border-t-border">
                           {columns.map((col) => (
-                            <td key={col} className="px-3 py-1.5 text-gray-700 whitespace-nowrap max-w-[200px] truncate">
+                            <td key={col} className="px-3 py-1.5 text-t-text-secondary whitespace-nowrap max-w-[200px] truncate">
                               {row[col]}
                             </td>
                           ))}
@@ -309,7 +305,7 @@ export default function CsvImportModal({ onClose, onMatchesReady }: Props) {
                     </tbody>
                   </table>
                 </div>
-                <p className="text-xs text-gray-400 mt-2">
+                <p className="text-xs text-t-text-muted mt-2">
                   {rawRows.length} total rows &middot; {parsedCount} credit transactions in selected range
                 </p>
               </div>
@@ -318,14 +314,14 @@ export default function CsvImportModal({ onClose, onMatchesReady }: Props) {
               <div className="flex items-center justify-between">
                 <button
                   onClick={() => { setStep("upload"); setRawRows([]); setColumns([]); }}
-                  className="text-sm text-gray-500 hover:text-gray-700"
+                  className="text-sm text-t-text-muted hover:text-t-text"
                 >
                   &larr; Choose different file
                 </button>
                 <button
                   onClick={handleMatch}
                   disabled={matching || parsedCount === 0 || !mapping.amount}
-                  className="px-4 py-2 bg-purple-600 text-white text-sm rounded-md hover:bg-purple-700 disabled:opacity-50"
+                  className="px-4 py-2 bg-purple-600 text-white text-sm rounded-[var(--t-radius-sm)] hover:bg-purple-700 disabled:opacity-50"
                 >
                   {matching ? "Matching..." : `Parse & Match (${parsedCount} transactions)`}
                 </button>

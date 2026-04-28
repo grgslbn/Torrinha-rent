@@ -241,7 +241,7 @@ export default function PaymentsClient() {
 
   function sortIndicator(key: SortKey) {
     if (sortKey !== key) return "";
-    return sortDir === "asc" ? " \u25B2" : " \u25BC";
+    return sortDir === "asc" ? " ▲" : " ▼";
   }
 
   const sorted = [...payments].sort((a, b) => {
@@ -326,24 +326,24 @@ export default function PaymentsClient() {
     <div>
       {/* Header with view toggle */}
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Payments</h1>
+        <h1 className="text-2xl font-bold text-t-text">Payments</h1>
         <div className="flex items-center gap-4">
           {/* Import CSV button */}
           <button
             onClick={() => setShowCsvImport(true)}
-            className="px-3 py-1.5 text-xs bg-gray-700 text-white rounded-md hover:bg-gray-800"
+            className="px-3 py-1.5 text-xs bg-t-text text-white rounded-[var(--t-radius-sm)] hover:opacity-80"
           >
             Import CSV
           </button>
           {/* View mode toggle */}
-          <div className="flex rounded overflow-hidden border border-gray-300 text-xs">
+          <div className="flex rounded overflow-hidden border border-t-border text-xs">
             <button
               type="button"
               onClick={() => setViewMode("month")}
               className={`px-3 py-1.5 font-medium ${
                 viewMode === "month"
-                  ? "bg-blue-600 text-white"
-                  : "bg-white text-gray-600 hover:bg-gray-50"
+                  ? "bg-t-accent text-white"
+                  : "bg-t-surface text-t-text-muted hover:bg-t-bg"
               }`}
             >
               By month
@@ -351,10 +351,10 @@ export default function PaymentsClient() {
             <button
               type="button"
               onClick={() => setViewMode("range")}
-              className={`px-3 py-1.5 font-medium border-l border-gray-300 ${
+              className={`px-3 py-1.5 font-medium border-l border-t-border ${
                 viewMode === "range"
-                  ? "bg-blue-600 text-white"
-                  : "bg-white text-gray-600 hover:bg-gray-50"
+                  ? "bg-t-accent text-white"
+                  : "bg-t-surface text-t-text-muted hover:bg-t-bg"
               }`}
             >
               Date range
@@ -366,7 +366,7 @@ export default function PaymentsClient() {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => changeMonth(-1)}
-                className="px-2 py-1 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded"
+                className="px-2 py-1 text-t-text-muted hover:text-t-text hover:bg-t-bg rounded"
               >
                 &larr;
               </button>
@@ -374,11 +374,11 @@ export default function PaymentsClient() {
                 type="month"
                 value={month}
                 onChange={(e) => setMonth(e.target.value)}
-                className="px-3 py-1.5 border border-gray-300 rounded text-sm text-gray-900"
+                className="px-3 py-1.5 border border-t-border rounded-[var(--t-radius-sm)] text-sm text-t-text"
               />
               <button
                 onClick={() => changeMonth(1)}
-                className="px-2 py-1 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded"
+                className="px-2 py-1 text-t-text-muted hover:text-t-text hover:bg-t-bg rounded"
               >
                 &rarr;
               </button>
@@ -389,14 +389,14 @@ export default function PaymentsClient() {
                 type="month"
                 value={rangeFrom}
                 onChange={(e) => setRangeFrom(e.target.value)}
-                className="px-2 py-1.5 border border-gray-300 rounded text-sm text-gray-900"
+                className="px-2 py-1.5 border border-t-border rounded-[var(--t-radius-sm)] text-sm text-t-text"
               />
-              <span className="text-gray-400">to</span>
+              <span className="text-t-text-muted">to</span>
               <input
                 type="month"
                 value={rangeTo}
                 onChange={(e) => setRangeTo(e.target.value)}
-                className="px-2 py-1.5 border border-gray-300 rounded text-sm text-gray-900"
+                className="px-2 py-1.5 border border-t-border rounded-[var(--t-radius-sm)] text-sm text-t-text"
               />
             </div>
           )}
@@ -417,37 +417,37 @@ export default function PaymentsClient() {
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
-        <div className="bg-white rounded-lg shadow p-4">
-          <p className="text-xs text-gray-500">Expected</p>
-          <p className="text-lg font-bold text-gray-900">
+        <div className="bg-t-surface border border-t-border rounded-[var(--t-radius-lg)] p-4">
+          <p className="text-xs text-t-text-muted">Expected</p>
+          <p className="text-lg font-bold text-t-text">
             &euro;{totalExpected.toFixed(2)}
           </p>
         </div>
-        <div className="bg-white rounded-lg shadow p-4">
-          <p className="text-xs text-gray-500">Received</p>
+        <div className="bg-t-surface border border-t-border rounded-[var(--t-radius-lg)] p-4">
+          <p className="text-xs text-t-text-muted">Received</p>
           <p className="text-lg font-bold text-green-700">
             &euro;{totalReceived.toFixed(2)}
           </p>
         </div>
-        <div className="bg-white rounded-lg shadow p-4">
-          <p className="text-xs text-gray-500">Paid</p>
+        <div className="bg-t-surface border border-t-border rounded-[var(--t-radius-lg)] p-4">
+          <p className="text-xs text-t-text-muted">Paid</p>
           <p className="text-lg font-bold text-green-700">{paidCount}</p>
         </div>
-        <div className="bg-white rounded-lg shadow p-4">
-          <p className="text-xs text-gray-500">Pending</p>
+        <div className="bg-t-surface border border-t-border rounded-[var(--t-radius-lg)] p-4">
+          <p className="text-xs text-t-text-muted">Pending</p>
           <p className="text-lg font-bold text-amber-600">{pendingCount}</p>
         </div>
-        <div className="bg-white rounded-lg shadow p-4">
-          <p className="text-xs text-gray-500">Overdue</p>
+        <div className="bg-t-surface border border-t-border rounded-[var(--t-radius-lg)] p-4">
+          <p className="text-xs text-t-text-muted">Overdue</p>
           <p className="text-lg font-bold text-red-600">{overdueCount}</p>
         </div>
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-gray-500">Loading...</div>
+        <div className="text-center py-12 text-t-text-muted">Loading...</div>
       ) : payments.length === 0 ? (
-        <div className="bg-white rounded-lg shadow p-8 text-center">
-          <p className="text-gray-500 mb-4">
+        <div className="bg-t-surface border border-t-border rounded-[var(--t-radius-lg)] p-8 text-center">
+          <p className="text-t-text-muted mb-4">
             {viewMode === "month"
               ? `No payment records for ${formatMonth(month)}.`
               : "No payment records in this date range."}
@@ -456,7 +456,7 @@ export default function PaymentsClient() {
             <button
               onClick={generateMonth}
               disabled={generating}
-              className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50"
+              className="px-4 py-2 bg-t-accent text-white text-sm rounded-[var(--t-radius-sm)] hover:bg-t-accent-hover disabled:opacity-50"
             >
               {generating
                 ? "Generating..."
@@ -471,7 +471,7 @@ export default function PaymentsClient() {
             <div className="flex justify-end mb-3">
               <button
                 onClick={() => downloadCsv(sorted)}
-                className="px-3 py-1.5 text-xs bg-gray-700 text-white rounded-md hover:bg-gray-800"
+                className="px-3 py-1.5 text-xs bg-t-text text-white rounded-[var(--t-radius-sm)] hover:opacity-80"
               >
                 Export to CSV
               </button>
@@ -479,66 +479,66 @@ export default function PaymentsClient() {
           )}
 
           {/* Main payments table */}
-          <div className="bg-white rounded-lg shadow overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+          <div className="bg-t-surface border border-t-border rounded-[var(--t-radius-lg)] overflow-x-auto">
+            <table className="min-w-full divide-y divide-t-border">
+              <thead className="bg-t-bg">
                 <tr>
                   <th
-                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:text-gray-700"
+                    className="px-4 py-3 text-left text-xs font-medium text-t-text-muted uppercase cursor-pointer hover:text-t-text"
                     onClick={() => toggleSort("name")}
                   >
                     Tenant{sortIndicator("name")}
                   </th>
                   <th
-                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:text-gray-700"
+                    className="px-4 py-3 text-left text-xs font-medium text-t-text-muted uppercase cursor-pointer hover:text-t-text"
                     onClick={() => toggleSort("spot")}
                   >
                     Spots{sortIndicator("spot")}
                   </th>
                   {viewMode === "range" && (
                     <th
-                      className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:text-gray-700"
+                      className="px-4 py-3 text-left text-xs font-medium text-t-text-muted uppercase cursor-pointer hover:text-t-text"
                       onClick={() => toggleSort("month")}
                     >
                       Month{sortIndicator("month")}
                     </th>
                   )}
                   <th
-                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:text-gray-700"
+                    className="px-4 py-3 text-left text-xs font-medium text-t-text-muted uppercase cursor-pointer hover:text-t-text"
                     onClick={() => toggleSort("amount")}
                   >
                     Amount{sortIndicator("amount")}
                   </th>
                   <th
-                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:text-gray-700"
+                    className="px-4 py-3 text-left text-xs font-medium text-t-text-muted uppercase cursor-pointer hover:text-t-text"
                     onClick={() => toggleSort("status")}
                   >
                     Status{sortIndicator("status")}
                   </th>
                   <th
-                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:text-gray-700"
+                    className="px-4 py-3 text-left text-xs font-medium text-t-text-muted uppercase cursor-pointer hover:text-t-text"
                     onClick={() => toggleSort("paid_date")}
                   >
                     Paid Date{sortIndicator("paid_date")}
                   </th>
                   {viewMode === "month" && (
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-t-text-muted uppercase">
                       Matched By
                     </th>
                   )}
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase w-28"></th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-t-text-muted uppercase w-28"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody className="divide-y divide-t-border">
                 {sorted.map((p) => {
                   const t = p.torrinha_tenants;
                   return (
-                    <tr key={p.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm text-gray-900">
+                    <tr key={p.id} className="hover:bg-t-bg">
+                      <td className="px-4 py-3 text-sm text-t-text">
                         {t ? (
                           <button
                             onClick={() => openTenantHistory(t)}
-                            className="text-blue-600 hover:text-blue-800 hover:underline text-left"
+                            className="text-t-accent hover:text-t-accent-hover hover:underline text-left"
                           >
                             {t.name}
                           </button>
@@ -546,32 +546,32 @@ export default function PaymentsClient() {
                           "—"
                         )}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-900 font-medium">
+                      <td className="px-4 py-3 text-sm text-t-text font-medium">
                         {spotLabels(t?.torrinha_spots)}
                       </td>
                       {viewMode === "range" && (
-                        <td className="px-4 py-3 text-sm text-gray-700">
+                        <td className="px-4 py-3 text-sm text-t-text-secondary">
                           {formatMonth(p.month)}
                         </td>
                       )}
-                      <td className="px-4 py-3 text-sm text-gray-900">
+                      <td className="px-4 py-3 text-sm text-t-text">
                         &euro;{p.amount_eur ?? t?.rent_eur ?? "—"}
                       </td>
                       <td className="px-4 py-3 text-sm">
                         <span
                           className={`px-2 py-0.5 rounded text-xs font-medium ${
                             STATUS_COLORS[p.status] ??
-                            "bg-gray-100 text-gray-500"
+                            "bg-t-bg text-t-text-muted"
                           }`}
                         >
                           {p.status}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-500">
+                      <td className="px-4 py-3 text-sm text-t-text-muted">
                         {p.paid_date ?? "—"}
                       </td>
                       {viewMode === "month" && (
-                        <td className="px-4 py-3 text-sm text-gray-500">
+                        <td className="px-4 py-3 text-sm text-t-text-muted">
                           {p.matched_by ?? "—"}
                         </td>
                       )}
@@ -593,14 +593,14 @@ export default function PaymentsClient() {
               {/* Summary row */}
               {sorted.length > 0 && (
                 <tfoot>
-                  <tr className="bg-gray-50 font-medium">
+                  <tr className="bg-t-bg font-medium">
                     <td
-                      className="px-4 py-3 text-sm text-gray-700"
+                      className="px-4 py-3 text-sm text-t-text-secondary"
                       colSpan={viewMode === "range" ? 3 : 2}
                     >
                       Total ({sorted.length} records)
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-900">
+                    <td className="px-4 py-3 text-sm text-t-text">
                       &euro;{totalExpected.toFixed(2)}
                     </td>
                     <td className="px-4 py-3 text-sm text-green-700">
@@ -647,7 +647,7 @@ export default function PaymentsClient() {
       {csvMatches.length > 0 && (
         <div className="mt-8">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-semibold text-gray-900">
+            <h2 className="text-lg font-semibold text-t-text">
               CSV Import Matches
               <span className="ml-2 text-sm font-normal text-purple-600">
                 {csvMatches.length} suggested
@@ -655,41 +655,41 @@ export default function PaymentsClient() {
             </h2>
             <button
               onClick={() => { setCsvMatches([]); setCsvTransactions([]); }}
-              className="text-xs text-gray-500 hover:text-gray-700"
+              className="text-xs text-t-text-muted hover:text-t-text"
             >
               Clear results
             </button>
           </div>
-          <div className="bg-white rounded-lg shadow overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+          <div className="bg-t-surface border border-t-border rounded-[var(--t-radius-lg)] overflow-x-auto">
+            <table className="min-w-full divide-y divide-t-border">
+              <thead className="bg-t-bg">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sender</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Match</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Confidence</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase w-28"></th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-t-text-muted uppercase">Date</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-t-text-muted uppercase">Amount</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-t-text-muted uppercase">Sender</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-t-text-muted uppercase">Match</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-t-text-muted uppercase">Confidence</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-t-text-muted uppercase w-28"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody className="divide-y divide-t-border">
                 {csvMatches.map((match) => {
                   const txn = csvTransactions.find((t) => t.id === match.transaction_id);
                   const payment = payments.find((p) => p.id === match.payment_id);
                   return (
-                    <tr key={match.transaction_id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm text-gray-900">{txn?.date ?? "—"}</td>
-                      <td className="px-4 py-3 text-sm text-gray-900 font-medium">&euro;{txn?.amount ?? "—"}</td>
-                      <td className="px-4 py-3 text-sm text-gray-700">{txn?.sender ?? "—"}</td>
+                    <tr key={match.transaction_id} className="hover:bg-t-bg">
+                      <td className="px-4 py-3 text-sm text-t-text">{txn?.date ?? "—"}</td>
+                      <td className="px-4 py-3 text-sm text-t-text font-medium">&euro;{txn?.amount ?? "—"}</td>
+                      <td className="px-4 py-3 text-sm text-t-text-secondary">{txn?.sender ?? "—"}</td>
                       <td className="px-4 py-3 text-sm">
-                        <span className="text-gray-900">{payment?.torrinha_tenants?.name ?? "—"}</span>
-                        <p className="text-xs text-gray-400 truncate max-w-[200px]">{match.reason}</p>
+                        <span className="text-t-text">{payment?.torrinha_tenants?.name ?? "—"}</span>
+                        <p className="text-xs text-t-text-muted truncate max-w-[200px]">{match.reason}</p>
                       </td>
                       <td className="px-4 py-3 text-sm">
                         <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
                           match.confidence === "high" ? "bg-green-50 text-green-700"
                           : match.confidence === "medium" ? "bg-amber-50 text-amber-700"
-                          : "bg-gray-100 text-gray-600"
+                          : "bg-t-bg text-t-text-muted"
                         }`}>{match.confidence}</span>
                       </td>
                       <td className="px-4 py-3 text-sm flex gap-1">
@@ -719,7 +719,7 @@ export default function PaymentsClient() {
                         </button>
                         <button
                           onClick={() => setCsvMatches((prev) => prev.filter((m) => m.transaction_id !== match.transaction_id))}
-                          className="px-2 py-1 text-xs text-gray-500 hover:text-red-600 hover:bg-red-50 rounded"
+                          className="px-2 py-1 text-xs text-t-text-muted hover:text-red-600 hover:bg-red-50 rounded"
                         >
                           Reject
                         </button>
@@ -803,7 +803,7 @@ function NeedsReviewSection({
   return (
     <div className="mt-8">
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-lg font-semibold text-gray-900">
+        <h2 className="text-lg font-semibold text-t-text">
           Needs Review
           {unmatchedTxns.length > 0 && (
             <span className="ml-2 text-sm font-normal text-amber-600">
@@ -833,7 +833,7 @@ function NeedsReviewSection({
               setAiLoading(false);
             }}
             disabled={aiLoading}
-            className="px-3 py-1.5 text-xs bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50"
+            className="px-3 py-1.5 text-xs bg-purple-600 text-white rounded-[var(--t-radius-sm)] hover:bg-purple-700 disabled:opacity-50"
           >
             {aiLoading ? "Matching..." : "Match with AI"}
           </button>
@@ -841,39 +841,39 @@ function NeedsReviewSection({
       </div>
 
       {unmatchedLoading ? (
-        <div className="bg-white rounded-lg shadow p-6 text-center">
-          <p className="text-sm text-gray-400">Loading...</p>
+        <div className="bg-t-surface border border-t-border rounded-[var(--t-radius-lg)] p-6 text-center">
+          <p className="text-sm text-t-text-muted">Loading...</p>
         </div>
       ) : unmatchedTxns.length === 0 ? (
-        <div className="bg-white rounded-lg shadow p-6 text-center">
-          <p className="text-sm text-gray-400">
+        <div className="bg-t-surface border border-t-border rounded-[var(--t-radius-lg)] p-6 text-center">
+          <p className="text-sm text-t-text-muted">
             No unmatched bank transactions.
           </p>
         </div>
       ) : (
-        <div className="bg-white rounded-lg shadow overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+        <div className="bg-t-surface border border-t-border rounded-[var(--t-radius-lg)] overflow-x-auto">
+          <table className="min-w-full divide-y divide-t-border">
+            <thead className="bg-t-bg">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="px-4 py-3 text-left text-xs font-medium text-t-text-muted uppercase">
                   Date
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="px-4 py-3 text-left text-xs font-medium text-t-text-muted uppercase">
                   Amount
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="px-4 py-3 text-left text-xs font-medium text-t-text-muted uppercase">
                   Counterparty
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="px-4 py-3 text-left text-xs font-medium text-t-text-muted uppercase">
                   Description
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="px-4 py-3 text-left text-xs font-medium text-t-text-muted uppercase">
                   AI Match
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase w-32"></th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-t-text-muted uppercase w-32"></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-t-border">
               {unmatchedTxns.map((txn) => {
                 const aiMatch = aiMatches.find(
                   (m) => m.transaction_id === txn.id
@@ -883,17 +883,17 @@ function NeedsReviewSection({
                   : null;
 
                 return (
-                  <tr key={txn.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm text-gray-900">
+                  <tr key={txn.id} className="hover:bg-t-bg">
+                    <td className="px-4 py-3 text-sm text-t-text">
                       {txn.transaction_date ?? "—"}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-900 font-medium">
+                    <td className="px-4 py-3 text-sm text-t-text font-medium">
                       &euro;{txn.amount_eur}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-700">
+                    <td className="px-4 py-3 text-sm text-t-text-secondary">
                       {txn.counterparty ?? "—"}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-500 max-w-[200px] truncate">
+                    <td className="px-4 py-3 text-sm text-t-text-muted max-w-[200px] truncate">
                       {txn.description ?? "—"}
                     </td>
                     <td className="px-4 py-3 text-sm">
@@ -905,22 +905,22 @@ function NeedsReviewSection({
                                 ? "bg-green-50 text-green-700"
                                 : aiMatch.confidence === "medium"
                                   ? "bg-amber-50 text-amber-700"
-                                  : "bg-gray-100 text-gray-600"
+                                  : "bg-t-bg text-t-text-muted"
                             }`}
                           >
                             {aiMatch.confidence}
                           </span>
-                          <span className="ml-1 text-xs text-gray-500">
+                          <span className="ml-1 text-xs text-t-text-muted">
                             {matchedPayment?.torrinha_tenants?.name ?? "—"}
                           </span>
-                          <p className="text-xs text-gray-400 mt-0.5 truncate max-w-[180px]">
+                          <p className="text-xs text-t-text-muted mt-0.5 truncate max-w-[180px]">
                             {aiMatch.reason}
                           </p>
                         </div>
                       ) : aiLoading ? (
-                        <span className="text-xs text-gray-400">...</span>
+                        <span className="text-xs text-t-text-muted">...</span>
                       ) : (
-                        <span className="text-xs text-gray-400">—</span>
+                        <span className="text-xs text-t-text-muted">—</span>
                       )}
                     </td>
                     <td className="px-4 py-3 text-sm flex gap-1">
@@ -987,7 +987,7 @@ function NeedsReviewSection({
                             await fetchUnmatched();
                           }
                         }}
-                        className="px-2 py-1 text-xs text-gray-500 hover:text-red-600 hover:bg-red-50 rounded"
+                        className="px-2 py-1 text-xs text-t-text-muted hover:text-red-600 hover:bg-red-50 rounded"
                       >
                         Dismiss
                       </button>
@@ -1028,11 +1028,11 @@ function TenantHistoryModal({
 }) {
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col">
-        <div className="p-5 border-b border-gray-200 flex items-center justify-between">
+      <div className="bg-t-surface border border-t-border rounded-[var(--t-radius-lg)] shadow-lg max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col">
+        <div className="p-5 border-b border-t-border flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-bold text-gray-900">{tenant.name}</h2>
-            <p className="text-sm text-gray-500">
+            <h2 className="text-lg font-bold text-t-text">{tenant.name}</h2>
+            <p className="text-sm text-t-text-muted">
               Spot{tenant.torrinha_spots.length > 1 ? "s" : ""}{" "}
               {spotLabels(tenant.torrinha_spots)} &middot; &euro;
               {tenant.rent_eur}/month
@@ -1040,7 +1040,7 @@ function TenantHistoryModal({
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+            className="text-t-text-muted hover:text-t-text text-xl leading-none"
           >
             &times;
           </button>
@@ -1053,8 +1053,8 @@ function TenantHistoryModal({
               onClick={() => onFilterChange(s)}
               className={`px-3 py-1 rounded text-xs font-medium ${
                 filter === s
-                  ? "bg-blue-50 text-blue-700"
-                  : "text-gray-500 hover:bg-gray-100"
+                  ? "bg-t-accent-light text-t-accent-text"
+                  : "text-t-text-muted hover:bg-t-bg"
               }`}
             >
               {s === "all" ? "All" : s.charAt(0).toUpperCase() + s.slice(1)}
@@ -1064,56 +1064,56 @@ function TenantHistoryModal({
 
         <div className="flex-1 overflow-y-auto p-5">
           {loading ? (
-            <p className="text-gray-500 text-center py-8">Loading...</p>
+            <p className="text-t-text-muted text-center py-8">Loading...</p>
           ) : history.length === 0 ? (
-            <p className="text-gray-400 text-center py-8">
+            <p className="text-t-text-muted text-center py-8">
               No payment records found.
             </p>
           ) : (
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+            <table className="min-w-full divide-y divide-t-border">
+              <thead className="bg-t-bg">
                 <tr>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="px-3 py-2 text-left text-xs font-medium text-t-text-muted uppercase">
                     Month
                   </th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="px-3 py-2 text-left text-xs font-medium text-t-text-muted uppercase">
                     Amount
                   </th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="px-3 py-2 text-left text-xs font-medium text-t-text-muted uppercase">
                     Status
                   </th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="px-3 py-2 text-left text-xs font-medium text-t-text-muted uppercase">
                     Paid
                   </th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="px-3 py-2 text-left text-xs font-medium text-t-text-muted uppercase">
                     Matched
                   </th>
                   <th className="px-3 py-2 text-xs w-24"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody className="divide-y divide-t-border">
                 {history.map((p) => (
                   <tr key={p.id}>
-                    <td className="px-3 py-2 text-sm text-gray-900">
+                    <td className="px-3 py-2 text-sm text-t-text">
                       {formatMonth(p.month)}
                     </td>
-                    <td className="px-3 py-2 text-sm text-gray-900">
+                    <td className="px-3 py-2 text-sm text-t-text">
                       &euro;{p.amount_eur ?? tenant.rent_eur}
                     </td>
                     <td className="px-3 py-2 text-sm">
                       <span
                         className={`px-2 py-0.5 rounded text-xs font-medium ${
                           STATUS_COLORS[p.status] ??
-                          "bg-gray-100 text-gray-500"
+                          "bg-t-bg text-t-text-muted"
                         }`}
                       >
                         {p.status}
                       </span>
                     </td>
-                    <td className="px-3 py-2 text-sm text-gray-500">
+                    <td className="px-3 py-2 text-sm text-t-text-muted">
                       {p.paid_date ?? "—"}
                     </td>
-                    <td className="px-3 py-2 text-sm text-gray-500">
+                    <td className="px-3 py-2 text-sm text-t-text-muted">
                       {p.matched_by ?? "—"}
                     </td>
                     <td className="px-3 py-2 text-sm">

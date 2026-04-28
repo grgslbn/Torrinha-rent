@@ -49,24 +49,24 @@ export default function WaitlistForm({
 
   if (submitted) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 relative">
+      <div className="min-h-screen flex items-center justify-center bg-t-bg px-4 relative">
         <RetroBackground />
         <div className="max-w-md text-center relative z-10">
           <div className="mb-4 text-4xl">&#10003;</div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-3">
+          <h1 className="text-2xl font-bold text-t-text mb-3">
             {isPt ? "Obrigado!" : "Thank you!"}
           </h1>
-          <p className="text-gray-600 mb-6">
+          <p className="text-t-text-secondary mb-6">
             {isPt
               ? "Recebemos o seu pedido. Entraremos em contacto quando houver disponibilidade."
               : "We've received your request. We'll be in touch when a spot becomes available."}
           </p>
           {contactEmail && (
-            <p className="text-sm text-gray-400">
+            <p className="text-sm text-t-text-muted">
               {isPt ? "Questões? Contacte" : "Questions? Contact"}{" "}
               <a
                 href={`mailto:${contactEmail}`}
-                className="text-blue-600 hover:underline"
+                className="text-t-accent hover:underline"
               >
                 {contactEmail}
               </a>
@@ -78,19 +78,19 @@ export default function WaitlistForm({
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 relative">
+    <div className="min-h-screen bg-t-bg flex items-center justify-center px-4 relative">
       <RetroBackground />
       <div className="w-full max-w-md relative z-10">
         {/* Language toggle — top right */}
         <div className="flex justify-end mb-4">
-          <div className="flex rounded overflow-hidden border border-gray-300 text-xs">
+          <div className="flex rounded overflow-hidden border border-t-border text-xs">
             <button
               type="button"
               onClick={() => setLanguage("pt")}
               className={`px-3 py-1 font-medium ${
                 isPt
-                  ? "bg-blue-600 text-white"
-                  : "bg-white text-gray-600 hover:bg-gray-50"
+                  ? "bg-t-accent text-white"
+                  : "bg-t-surface text-t-text-muted hover:bg-t-bg"
               }`}
             >
               PT
@@ -98,10 +98,10 @@ export default function WaitlistForm({
             <button
               type="button"
               onClick={() => setLanguage("en")}
-              className={`px-3 py-1 font-medium border-l border-gray-300 ${
+              className={`px-3 py-1 font-medium border-l border-t-border ${
                 !isPt
-                  ? "bg-blue-600 text-white"
-                  : "bg-white text-gray-600 hover:bg-gray-50"
+                  ? "bg-t-accent text-white"
+                  : "bg-t-surface text-t-text-muted hover:bg-t-bg"
               }`}
             >
               EN
@@ -110,15 +110,15 @@ export default function WaitlistForm({
         </div>
 
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">
+          <h1 className="text-2xl font-bold text-t-text">
             {isPt
               ? "Estacionamento Rua da Torrinha 149"
               : "Rua da Torrinha 149 Parking"}
           </h1>
-          <p className="text-gray-500 mt-1">Porto</p>
+          <p className="text-t-text-muted mt-1">Porto</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg shadow">
+        <form onSubmit={handleSubmit} className="bg-t-surface border border-t-border p-6 rounded-[var(--t-radius-lg)]">
           {error && (
             <div className="mb-4 p-3 bg-red-50 text-red-700 rounded text-sm">
               {error}
@@ -126,7 +126,7 @@ export default function WaitlistForm({
           )}
 
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-t-text-secondary mb-1">
               {isPt ? "Nome" : "Name"} *
             </label>
             <input
@@ -134,12 +134,12 @@ export default function WaitlistForm({
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900"
+              className="w-full px-3 py-2 border border-t-border rounded-[var(--t-radius-sm)] text-t-text"
             />
           </div>
 
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-t-text-secondary mb-1">
               Email *
             </label>
             <input
@@ -147,28 +147,28 @@ export default function WaitlistForm({
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900"
+              className="w-full px-3 py-2 border border-t-border rounded-[var(--t-radius-sm)] text-t-text"
             />
           </div>
 
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-t-text-secondary mb-1">
               {isPt ? "Telefone" : "Phone"}
             </label>
             <input
               type="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900"
+              className="w-full px-3 py-2 border border-t-border rounded-[var(--t-radius-sm)] text-t-text"
             />
           </div>
 
           {/* T&Cs scrollable box */}
           <div className="mb-4">
-            <label className="block text-xs font-medium text-gray-500 mb-1 uppercase tracking-wide">
+            <label className="block text-xs font-medium text-t-text-muted mb-1 uppercase tracking-wide">
               {isPt ? "Termos e Condições" : "Terms & Conditions"}
             </label>
-            <div className="h-28 overflow-y-auto border border-gray-200 rounded-md p-3 bg-gray-50 text-xs text-gray-600 leading-relaxed">
+            <div className="h-28 overflow-y-auto border border-t-border rounded-[var(--t-radius-sm)] p-3 bg-t-bg text-xs text-t-text-secondary leading-relaxed">
               {tcText}
             </div>
           </div>
@@ -179,10 +179,10 @@ export default function WaitlistForm({
                 type="checkbox"
                 checked={tcAccepted}
                 onChange={(e) => setTcAccepted(e.target.checked)}
-                className="mt-0.5"
+                className="mt-0.5 accent-[var(--t-accent)]"
                 required
               />
-              <span className="text-xs text-gray-600">
+              <span className="text-xs text-t-text-secondary">
                 {isPt
                   ? "Li e aceito os termos e condições"
                   : "I have read and accept the terms and conditions"}
@@ -193,7 +193,7 @@ export default function WaitlistForm({
           <button
             type="submit"
             disabled={loading || !tcAccepted}
-            className="w-full py-2 px-4 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+            className="w-full py-2 px-4 bg-t-accent text-white rounded-[var(--t-radius-sm)] hover:bg-t-accent-hover disabled:opacity-50"
           >
             {loading
               ? isPt
@@ -206,11 +206,11 @@ export default function WaitlistForm({
         </form>
 
         {contactEmail && (
-          <p className="text-center text-xs text-gray-400 mt-4">
+          <p className="text-center text-xs text-t-text-muted mt-4">
             {isPt ? "Contacto:" : "Contact:"}{" "}
             <a
               href={`mailto:${contactEmail}`}
-              className="text-blue-500 hover:underline"
+              className="text-t-accent hover:underline"
             >
               {contactEmail}
             </a>

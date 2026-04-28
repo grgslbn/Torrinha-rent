@@ -59,15 +59,15 @@ export default function SettingsPage() {
     }
   }
 
-  if (loading) return <div className="p-6 text-sm text-gray-500">Loading…</div>;
+  if (loading) return <div className="p-6 text-sm text-t-text-muted">Loading…</div>;
 
   return (
     <div className="p-6 max-w-lg">
       <h1 className="text-xl font-semibold mb-6">Settings</h1>
 
-      <section className="bg-white border border-gray-200 rounded-lg p-5 space-y-4">
-        <h2 className="font-medium text-gray-900">Owner CC on outbound emails</h2>
-        <p className="text-sm text-gray-500">
+      <section className="bg-t-surface border border-t-border rounded-[var(--t-radius-lg)] p-5 space-y-4">
+        <h2 className="font-medium text-t-text">Owner CC on outbound emails</h2>
+        <p className="text-sm text-t-text-muted">
           Adds the owner address as CC or BCC on every tenant-facing email. Skipped on
           owner-to-owner alerts.
         </p>
@@ -79,13 +79,13 @@ export default function SettingsPage() {
             onChange={(e) =>
               setSettings((s) => ({ ...s, owner_cc_enabled: e.target.checked }))
             }
-            className="w-4 h-4 accent-blue-600"
+            className="w-4 h-4 accent-[var(--t-accent)]"
           />
-          <span className="text-sm font-medium text-gray-700">Enable CC</span>
+          <span className="text-sm font-medium text-t-text-secondary">Enable CC</span>
         </label>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-t-text-secondary mb-1">
             Owner email
           </label>
           <input
@@ -96,12 +96,12 @@ export default function SettingsPage() {
             }
             placeholder="owner@example.com"
             disabled={!settings.owner_cc_enabled}
-            className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm disabled:bg-gray-50 disabled:text-gray-400"
+            className="w-full border border-t-border rounded-[var(--t-radius-sm)] px-3 py-1.5 text-sm disabled:bg-t-bg disabled:text-t-text-muted"
           />
         </div>
 
         <div>
-          <p className="text-sm font-medium text-gray-700 mb-2">Mode</p>
+          <p className="text-sm font-medium text-t-text-secondary mb-2">Mode</p>
           <div className="flex gap-6">
             {(["cc", "bcc"] as const).map((mode) => (
               <label key={mode} className="flex items-center gap-2 cursor-pointer">
@@ -114,9 +114,9 @@ export default function SettingsPage() {
                     setSettings((s) => ({ ...s, owner_cc_mode: mode }))
                   }
                   disabled={!settings.owner_cc_enabled}
-                  className="accent-blue-600"
+                  className="accent-[var(--t-accent)]"
                 />
-                <span className="text-sm text-gray-700 uppercase">{mode}</span>
+                <span className="text-sm text-t-text-secondary uppercase">{mode}</span>
               </label>
             ))}
           </div>
@@ -127,7 +127,7 @@ export default function SettingsPage() {
         <button
           onClick={handleSave}
           disabled={saving}
-          className="px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50"
+          className="px-4 py-2 bg-t-accent text-white text-sm rounded-[var(--t-radius-sm)] hover:bg-t-accent-hover disabled:opacity-50"
         >
           {saving ? "Saving…" : "Save settings"}
         </button>

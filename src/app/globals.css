@@ -4,6 +4,7 @@
   --t-bg: #faf9f6;
   --t-surface: #ffffff;
   --t-text: #111111;
+  --t-text-secondary: #374151;
   --t-text-muted: #6b7280;
   --t-accent: #ff5600;
   --t-accent-hover: #e64d00;
@@ -20,6 +21,7 @@
   --color-t-bg: var(--t-bg);
   --color-t-surface: var(--t-surface);
   --color-t-text: var(--t-text);
+  --color-t-text-secondary: var(--t-text-secondary);
   --color-t-text-muted: var(--t-text-muted);
   --color-t-accent: var(--t-accent);
   --color-t-accent-hover: var(--t-accent-hover);

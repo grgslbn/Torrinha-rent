@@ -22,8 +22,8 @@ type Filter = "all" | "auto_matched" | "ai_matched" | "manual" | "unmatched" | "
 
 const STATUS_COLORS: Record<string, string> = {
   auto_matched: "bg-green-100 text-green-700 border-green-300",
-  ai_matched: "bg-blue-100 text-blue-700 border-blue-300",
-  manual: "bg-gray-100 text-gray-600 border-gray-300",
+  ai_matched: "bg-t-accent-light text-t-accent-text border-t-border",
+  manual: "bg-t-bg text-t-text-muted border-t-border",
   unmatched: "bg-amber-100 text-amber-700 border-amber-300",
   ignored: "bg-red-50 text-red-600 border-red-200",
 };
@@ -136,10 +136,10 @@ export default function BankClient() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Bank Transactions</h1>
+        <h1 className="text-2xl font-bold text-t-text">Bank Transactions</h1>
         <a
           href="/admin/connect-bank"
-          className="text-xs text-gray-500 hover:text-gray-700"
+          className="text-xs text-t-text-muted hover:text-t-text"
         >
           Connection status &rarr;
         </a>
@@ -158,60 +158,60 @@ export default function BankClient() {
 
       {/* Section 1: Summary strip */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <div className={`rounded-lg shadow p-5 ${summary.today.total === 0 ? "bg-amber-50 border border-amber-200" : "bg-white"}`}>
-          <p className="text-xs text-gray-500 uppercase tracking-wide">Today</p>
+        <div className={`rounded-[var(--t-radius-lg)] p-5 ${summary.today.total === 0 ? "bg-amber-50 border border-amber-200" : "bg-t-surface border border-t-border"}`}>
+          <p className="text-xs text-t-text-muted uppercase tracking-wide">Today</p>
           {summary.today.total === 0 ? (
             <p className="text-sm text-amber-700 mt-1">No transactions received today</p>
           ) : (
             <>
-              <p className="text-2xl font-bold text-gray-900">{summary.today.total}</p>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-2xl font-bold text-t-text">{summary.today.total}</p>
+              <p className="text-xs text-t-text-muted mt-1">
                 {summary.today.matched} matched · {summary.today.unmatched} unmatched
               </p>
             </>
           )}
         </div>
-        <div className="bg-white rounded-lg shadow p-5">
-          <p className="text-xs text-gray-500 uppercase tracking-wide">This month</p>
-          <p className="text-2xl font-bold text-gray-900">{summary.month.total}</p>
-          <p className="text-xs text-gray-500 mt-1">
+        <div className="bg-t-surface border border-t-border rounded-[var(--t-radius-lg)] p-5">
+          <p className="text-xs text-t-text-muted uppercase tracking-wide">This month</p>
+          <p className="text-2xl font-bold text-t-text">{summary.month.total}</p>
+          <p className="text-xs text-t-text-muted mt-1">
             {summary.month.matched} matched · {summary.month.unmatched} unmatched
           </p>
         </div>
-        <div className="bg-white rounded-lg shadow p-5">
-          <p className="text-xs text-gray-500 uppercase tracking-wide">Last sync</p>
-          <p className="text-sm font-medium text-gray-900 mt-2">
+        <div className="bg-t-surface border border-t-border rounded-[var(--t-radius-lg)] p-5">
+          <p className="text-xs text-t-text-muted uppercase tracking-wide">Last sync</p>
+          <p className="text-sm font-medium text-t-text mt-2">
             {summary.lastSync ? formatDate(summary.lastSync) : "—"}
           </p>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-lg shadow p-4 mb-4 flex flex-wrap items-end gap-3">
+      <div className="bg-t-surface border border-t-border rounded-[var(--t-radius-lg)] p-4 mb-4 flex flex-wrap items-end gap-3">
         <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">From</label>
+          <label className="block text-xs font-medium text-t-text-muted mb-1">From</label>
           <input
             type="date"
             value={from}
             onChange={(e) => setFrom(e.target.value)}
-            className="px-2 py-1.5 border border-gray-300 rounded text-sm text-gray-900"
+            className="px-2 py-1.5 border border-t-border rounded-[var(--t-radius-sm)] text-sm text-t-text"
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">To</label>
+          <label className="block text-xs font-medium text-t-text-muted mb-1">To</label>
           <input
             type="date"
             value={to}
             onChange={(e) => setTo(e.target.value)}
-            className="px-2 py-1.5 border border-gray-300 rounded text-sm text-gray-900"
+            className="px-2 py-1.5 border border-t-border rounded-[var(--t-radius-sm)] text-sm text-t-text"
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">Status</label>
+          <label className="block text-xs font-medium text-t-text-muted mb-1">Status</label>
           <select
             value={filter}
             onChange={(e) => setFilter(e.target.value as Filter)}
-            className="px-2 py-1.5 border border-gray-300 rounded text-sm text-gray-900"
+            className="px-2 py-1.5 border border-t-border rounded-[var(--t-radius-sm)] text-sm text-t-text"
           >
             <option value="all">All statuses</option>
             <option value="auto_matched">Auto-matched</option>
@@ -223,57 +223,57 @@ export default function BankClient() {
         </div>
         <button
           onClick={fetchLog}
-          className="ml-auto px-3 py-1.5 text-xs bg-gray-700 text-white rounded-md hover:bg-gray-800"
+          className="ml-auto px-3 py-1.5 text-xs bg-t-text text-white rounded-[var(--t-radius-sm)] hover:opacity-80"
         >
           Refresh
         </button>
       </div>
 
       {/* Section 2: Transaction table */}
-      <div className="bg-white rounded-lg shadow overflow-x-auto mb-6">
+      <div className="bg-t-surface border border-t-border rounded-[var(--t-radius-lg)] overflow-x-auto mb-6">
         {loading ? (
-          <div className="text-center py-12 text-gray-500">Loading...</div>
+          <div className="text-center py-12 text-t-text-muted">Loading...</div>
         ) : rows.length === 0 ? (
-          <div className="text-center py-12 text-gray-400 text-sm">
+          <div className="text-center py-12 text-t-text-muted text-sm">
             No transactions in this range.
           </div>
         ) : (
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+          <table className="min-w-full divide-y divide-t-border">
+            <thead className="bg-t-bg">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Received</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Execution</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Counterpart</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Matched tenant</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Month</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-t-text-muted uppercase">Received</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-t-text-muted uppercase">Execution</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-t-text-muted uppercase">Amount</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-t-text-muted uppercase">Counterpart</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-t-text-muted uppercase">Status</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-t-text-muted uppercase">Matched tenant</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-t-text-muted uppercase">Month</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-t-border">
               {rows.map((r) => (
-                <tr key={r.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-2 text-sm text-gray-500 whitespace-nowrap">
+                <tr key={r.id} className="hover:bg-t-bg">
+                  <td className="px-4 py-2 text-sm text-t-text-muted whitespace-nowrap">
                     {formatDate(r.received_at)}
                   </td>
-                  <td className="px-4 py-2 text-sm text-gray-700">
+                  <td className="px-4 py-2 text-sm text-t-text-secondary">
                     {r.execution_date ?? "—"}
                   </td>
-                  <td className="px-4 py-2 text-sm text-gray-900 font-medium">
+                  <td className="px-4 py-2 text-sm text-t-text font-medium">
                     {r.amount_eur != null ? `€${Number(r.amount_eur).toFixed(2)}` : "—"}
                   </td>
-                  <td className="px-4 py-2 text-sm text-gray-700 max-w-[200px] truncate" title={r.counterpart ?? ""}>
+                  <td className="px-4 py-2 text-sm text-t-text-secondary max-w-[200px] truncate" title={r.counterpart ?? ""}>
                     {r.counterpart ?? "—"}
                   </td>
                   <td className="px-4 py-2 text-sm">
-                    <span className={`px-2 py-0.5 rounded text-xs font-medium border ${STATUS_COLORS[r.match_status] ?? "bg-gray-50 text-gray-500 border-gray-200"}`}>
+                    <span className={`px-2 py-0.5 rounded text-xs font-medium border ${STATUS_COLORS[r.match_status] ?? "bg-t-bg text-t-text-muted border-t-border"}`}>
                       {STATUS_LABELS[r.match_status] ?? r.match_status}
                     </span>
                   </td>
-                  <td className="px-4 py-2 text-sm text-gray-700">
+                  <td className="px-4 py-2 text-sm text-t-text-secondary">
                     {r.torrinha_tenants?.name ?? "—"}
                   </td>
-                  <td className="px-4 py-2 text-sm text-gray-500">
+                  <td className="px-4 py-2 text-sm text-t-text-muted">
                     {r.matched_month ?? "—"}
                   </td>
                 </tr>
@@ -284,8 +284,8 @@ export default function BankClient() {
       </div>
 
       {/* Section 3: Daily calendar */}
-      <div className="bg-white rounded-lg shadow p-5">
-        <h2 className="text-sm font-semibold text-gray-900 mb-3">Last 30 days</h2>
+      <div className="bg-t-surface border border-t-border rounded-[var(--t-radius-lg)] p-5">
+        <h2 className="text-sm font-semibold text-t-text mb-3">Last 30 days</h2>
         <div className="grid grid-cols-10 sm:grid-cols-15 gap-1.5" style={{ gridTemplateColumns: "repeat(10, 1fr)" }}>
           {calendarDays.map((d) => {
             const colour =
@@ -293,7 +293,7 @@ export default function BankClient() {
                 ? "bg-amber-400"
                 : d.count > 0
                   ? "bg-green-400"
-                  : "bg-gray-200";
+                  : "bg-t-border";
             return (
               <div
                 key={d.date}
@@ -307,7 +307,7 @@ export default function BankClient() {
             );
           })}
         </div>
-        <div className="flex flex-wrap gap-4 mt-3 text-xs text-gray-500">
+        <div className="flex flex-wrap gap-4 mt-3 text-xs text-t-text-muted">
           <span className="flex items-center gap-1">
             <span className="w-3 h-3 rounded bg-green-400 inline-block" /> Transactions received
           </span>
@@ -315,7 +315,7 @@ export default function BankClient() {
             <span className="w-3 h-3 rounded bg-amber-400 inline-block" /> Unmatched on this day
           </span>
           <span className="flex items-center gap-1">
-            <span className="w-3 h-3 rounded bg-gray-200 inline-block" /> Nothing
+            <span className="w-3 h-3 rounded bg-t-border inline-block" /> Nothing
           </span>
         </div>
       </div>

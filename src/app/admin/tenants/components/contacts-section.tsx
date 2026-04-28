@@ -63,24 +63,24 @@ export default function ContactsSection({
   return (
     <div className="space-y-2">
       {contacts.length === 0 && !showAdd && (
-        <p className="text-sm text-gray-400">No additional contacts.</p>
+        <p className="text-sm text-t-text-muted">No additional contacts.</p>
       )}
 
       {contacts.map((c) => (
-        <div key={c.id} className="flex items-start gap-3 p-3 border border-gray-100 rounded-lg">
+        <div key={c.id} className="flex items-start gap-3 p-3 border border-t-border rounded-[var(--t-radius-md)]">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-sm font-medium text-gray-900">{c.name}</span>
+              <span className="text-sm font-medium text-t-text">{c.name}</span>
               {c.label && (
-                <span className="text-xs text-gray-500 bg-gray-100 rounded px-1.5 py-0.5">{c.label}</span>
+                <span className="text-xs text-t-text-muted bg-t-bg rounded px-1.5 py-0.5">{c.label}</span>
               )}
             </div>
-            {c.email && <p className="text-sm text-gray-500 truncate mt-0.5">{c.email}</p>}
-            {c.phone && <p className="text-sm text-gray-500">{c.phone}</p>}
-            {c.notes && <p className="text-xs text-gray-400 mt-0.5">{c.notes}</p>}
+            {c.email && <p className="text-sm text-t-text-muted truncate mt-0.5">{c.email}</p>}
+            {c.phone && <p className="text-sm text-t-text-muted">{c.phone}</p>}
+            {c.notes && <p className="text-xs text-t-text-muted mt-0.5">{c.notes}</p>}
           </div>
           <div className="flex items-center gap-2 shrink-0 pt-0.5">
-            <label className="flex items-center gap-1 text-xs text-gray-500 cursor-pointer" title="CC on tenant emails">
+            <label className="flex items-center gap-1 text-xs text-t-text-muted cursor-pointer" title="CC on tenant emails">
               <input
                 type="checkbox"
                 checked={c.receives_emails}
@@ -103,45 +103,45 @@ export default function ContactsSection({
       {showAdd ? (
         <form
           onSubmit={handleAdd}
-          className="border border-dashed border-gray-300 rounded-lg p-3 space-y-2"
+          className="border border-dashed border-t-border rounded-[var(--t-radius-md)] p-3 space-y-2"
         >
-          <p className="text-xs font-medium text-gray-600">New contact</p>
+          <p className="text-xs font-medium text-t-text-muted">New contact</p>
           <div className="grid grid-cols-2 gap-2">
             <input
               placeholder="Label (e.g. spouse)"
               value={addForm.label}
               onChange={(e) => setAdd("label", e.target.value)}
-              className="px-2 py-1.5 border border-gray-200 rounded text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="px-2 py-1.5 border border-t-border rounded-[var(--t-radius-sm)] text-sm text-t-text focus:outline-none focus:ring-1 focus:ring-t-accent"
             />
             <input
               placeholder="Name *"
               value={addForm.name}
               onChange={(e) => setAdd("name", e.target.value)}
               required
-              className="px-2 py-1.5 border border-gray-200 rounded text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="px-2 py-1.5 border border-t-border rounded-[var(--t-radius-sm)] text-sm text-t-text focus:outline-none focus:ring-1 focus:ring-t-accent"
             />
             <input
               type="email"
               placeholder="Email"
               value={addForm.email}
               onChange={(e) => setAdd("email", e.target.value)}
-              className="px-2 py-1.5 border border-gray-200 rounded text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="px-2 py-1.5 border border-t-border rounded-[var(--t-radius-sm)] text-sm text-t-text focus:outline-none focus:ring-1 focus:ring-t-accent"
             />
             <input
               type="tel"
               placeholder="Phone"
               value={addForm.phone}
               onChange={(e) => setAdd("phone", e.target.value)}
-              className="px-2 py-1.5 border border-gray-200 rounded text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="px-2 py-1.5 border border-t-border rounded-[var(--t-radius-sm)] text-sm text-t-text focus:outline-none focus:ring-1 focus:ring-t-accent"
             />
           </div>
           <input
             placeholder="Notes"
             value={addForm.notes}
             onChange={(e) => setAdd("notes", e.target.value)}
-            className="w-full px-2 py-1.5 border border-gray-200 rounded text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="w-full px-2 py-1.5 border border-t-border rounded-[var(--t-radius-sm)] text-sm text-t-text focus:outline-none focus:ring-1 focus:ring-t-accent"
           />
-          <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+          <label className="flex items-center gap-2 text-sm text-t-text-secondary cursor-pointer">
             <input
               type="checkbox"
               checked={addForm.receives_emails}
@@ -161,7 +161,7 @@ export default function ContactsSection({
             <button
               type="button"
               onClick={() => setShowAdd(false)}
-              className="px-3 py-1.5 text-sm text-gray-500 hover:text-gray-700"
+              className="px-3 py-1.5 text-sm text-t-text-muted hover:text-t-text"
             >
               Cancel
             </button>

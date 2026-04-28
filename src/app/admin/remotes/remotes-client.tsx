@@ -144,7 +144,7 @@ export default function RemotesClient() {
             onChange={(e) => setEditValue(e.target.value)}
             onBlur={saveEdit}
             autoFocus
-            className="px-1 py-0.5 border border-blue-300 rounded text-sm text-gray-900"
+            className="px-1 py-0.5 border border-t-accent rounded-[var(--t-radius-sm)] text-sm text-t-text"
           >
             <option value="true">Yes</option>
             <option value="false">No</option>
@@ -159,7 +159,7 @@ export default function RemotesClient() {
           onBlur={saveEdit}
           onKeyDown={handleEditKeyDown}
           autoFocus
-          className="w-full px-1 py-0.5 border border-blue-300 rounded text-sm text-gray-900"
+          className="w-full px-1 py-0.5 border border-t-accent rounded-[var(--t-radius-sm)] text-sm text-t-text"
         />
       );
     }
@@ -167,7 +167,7 @@ export default function RemotesClient() {
     return (
       <span
         onClick={() => startEdit(remote.id, field, String(displayValue === "—" ? "" : (field === "deposit_paid" ? remote.deposit_paid : (remote as Record<string, unknown>)[field]) ?? ""))}
-        className="cursor-pointer hover:bg-blue-50 px-1 py-0.5 rounded -mx-1 block"
+        className="cursor-pointer hover:bg-t-accent-light px-1 py-0.5 rounded -mx-1 block"
         title="Click to edit"
       >
         {displayValue}
@@ -197,7 +197,7 @@ export default function RemotesClient() {
 
   if (loading) {
     return (
-      <div className="text-center py-12 text-gray-500">
+      <div className="text-center py-12 text-t-text-muted">
         Loading remotes...
       </div>
     );
@@ -206,10 +206,10 @@ export default function RemotesClient() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Remote Controls</h1>
+        <h1 className="text-2xl font-bold text-t-text">Remote Controls</h1>
         <button
           onClick={() => setShowAddForm(!showAddForm)}
-          className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700"
+          className="px-4 py-2 bg-t-accent text-white text-sm rounded-[var(--t-radius-sm)] hover:bg-t-accent-hover"
         >
           {showAddForm ? "Cancel" : "Issue Remote"}
         </button>
@@ -240,48 +240,48 @@ export default function RemotesClient() {
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 gap-4 mb-6">
-        <div className="bg-white rounded-lg shadow p-4">
-          <p className="text-sm text-gray-500">Remotes In Circulation</p>
-          <p className="text-2xl font-bold text-gray-900">{totalRemotesOut}</p>
+        <div className="bg-t-surface border border-t-border rounded-[var(--t-radius-lg)] p-4">
+          <p className="text-sm text-t-text-muted">Remotes In Circulation</p>
+          <p className="text-2xl font-bold text-t-text">{totalRemotesOut}</p>
         </div>
-        <div className="bg-white rounded-lg shadow p-4">
-          <p className="text-sm text-gray-500">Total Deposits Held</p>
-          <p className="text-2xl font-bold text-gray-900">
+        <div className="bg-t-surface border border-t-border rounded-[var(--t-radius-lg)] p-4">
+          <p className="text-sm text-t-text-muted">Total Deposits Held</p>
+          <p className="text-2xl font-bold text-t-text">
             &euro;{totalDepositsHeld.toFixed(2)}
           </p>
         </div>
       </div>
 
       {/* Active remotes table */}
-      <div className="bg-white rounded-lg shadow overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+      <div className="bg-t-surface border border-t-border rounded-[var(--t-radius-lg)] overflow-x-auto">
+        <table className="min-w-full divide-y divide-t-border">
+          <thead className="bg-t-bg">
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+              <th className="px-4 py-3 text-left text-xs font-medium text-t-text-muted uppercase">
                 Spots
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+              <th className="px-4 py-3 text-left text-xs font-medium text-t-text-muted uppercase">
                 Tenant
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+              <th className="px-4 py-3 text-left text-xs font-medium text-t-text-muted uppercase">
                 Count
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+              <th className="px-4 py-3 text-left text-xs font-medium text-t-text-muted uppercase">
                 Deposit Paid
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+              <th className="px-4 py-3 text-left text-xs font-medium text-t-text-muted uppercase">
                 Deposit &euro;
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+              <th className="px-4 py-3 text-left text-xs font-medium text-t-text-muted uppercase">
                 Issued
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+              <th className="px-4 py-3 text-left text-xs font-medium text-t-text-muted uppercase">
                 Returned
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase w-24"></th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-t-text-muted uppercase w-24"></th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200">
+          <tbody className="divide-y divide-t-border">
             {activeRemotes.length > 0 ? (
               activeRemotes.map((r) => {
                 const tenant = r.torrinha_tenants;
@@ -289,12 +289,12 @@ export default function RemotesClient() {
                 return (
                   <tr
                     key={r.id}
-                    className={`hover:bg-gray-50 ${tenantInactive ? "bg-amber-50" : ""}`}
+                    className={`hover:bg-t-bg ${tenantInactive ? "bg-amber-50" : ""}`}
                   >
-                    <td className="px-4 py-3 text-sm text-gray-900 font-medium">
+                    <td className="px-4 py-3 text-sm text-t-text font-medium">
                       {spotLabels(tenant?.torrinha_spots)}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-900">
+                    <td className="px-4 py-3 text-sm text-t-text">
                       {tenant?.name ?? "—"}
                       {tenantInactive && (
                         <span className="ml-1 text-xs text-amber-600 font-medium">
@@ -302,17 +302,17 @@ export default function RemotesClient() {
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-900">
+                    <td className="px-4 py-3 text-sm text-t-text">
                       {renderEditable(r, "count", String(r.count), "number")}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-900">
+                    <td className="px-4 py-3 text-sm text-t-text">
                       {renderEditable(
                         r,
                         "deposit_paid",
                         r.deposit_paid ? "Yes" : "No"
                       )}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-900">
+                    <td className="px-4 py-3 text-sm text-t-text">
                       {renderEditable(
                         r,
                         "deposit_eur",
@@ -320,7 +320,7 @@ export default function RemotesClient() {
                         "number"
                       )}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-500">
+                    <td className="px-4 py-3 text-sm text-t-text-muted">
                       {renderEditable(
                         r,
                         "issued_date",
@@ -328,7 +328,7 @@ export default function RemotesClient() {
                         "date"
                       )}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-500">
+                    <td className="px-4 py-3 text-sm text-t-text-muted">
                       {renderEditable(
                         r,
                         "returned_date",
@@ -340,7 +340,7 @@ export default function RemotesClient() {
                       <button
                         onClick={() => markReturned(r.id)}
                         disabled={saving}
-                        className="text-xs text-blue-600 hover:text-blue-800 disabled:opacity-50"
+                        className="text-xs text-t-accent hover:text-t-accent-hover disabled:opacity-50"
                       >
                         Mark returned
                       </button>
@@ -352,7 +352,7 @@ export default function RemotesClient() {
               <tr>
                 <td
                   colSpan={8}
-                  className="px-4 py-8 text-center text-sm text-gray-500"
+                  className="px-4 py-8 text-center text-sm text-t-text-muted"
                 >
                   No remotes currently in circulation.
                 </td>
@@ -360,15 +360,15 @@ export default function RemotesClient() {
             )}
             {/* Totals row */}
             {activeRemotes.length > 0 && (
-              <tr className="bg-gray-50 font-medium">
-                <td className="px-4 py-3 text-sm text-gray-700" colSpan={2}>
+              <tr className="bg-t-bg font-medium">
+                <td className="px-4 py-3 text-sm text-t-text-secondary" colSpan={2}>
                   Total
                 </td>
-                <td className="px-4 py-3 text-sm text-gray-900">
+                <td className="px-4 py-3 text-sm text-t-text">
                   {totalRemotesOut}
                 </td>
-                <td className="px-4 py-3 text-sm text-gray-500" />
-                <td className="px-4 py-3 text-sm text-gray-900">
+                <td className="px-4 py-3 text-sm text-t-text-muted" />
+                <td className="px-4 py-3 text-sm text-t-text">
                   &euro;{totalDepositsHeld.toFixed(2)}
                 </td>
                 <td colSpan={3} />
@@ -381,32 +381,32 @@ export default function RemotesClient() {
       {/* Returned remotes */}
       {returnedRemotes.length > 0 && (
         <div className="mt-8">
-          <h2 className="text-lg font-semibold text-gray-500 mb-3">
+          <h2 className="text-lg font-semibold text-t-text-muted mb-3">
             Returned Remotes
           </h2>
-          <div className="bg-white rounded-lg shadow overflow-x-auto opacity-60">
-            <table className="min-w-full divide-y divide-gray-200">
-              <tbody className="divide-y divide-gray-200">
+          <div className="bg-t-surface border border-t-border rounded-[var(--t-radius-lg)] overflow-x-auto opacity-60">
+            <table className="min-w-full divide-y divide-t-border">
+              <tbody className="divide-y divide-t-border">
                 {returnedRemotes.map((r) => {
                   const tenant = r.torrinha_tenants;
                   return (
                     <tr key={r.id}>
-                      <td className="px-4 py-2 text-sm text-gray-400">
+                      <td className="px-4 py-2 text-sm text-t-text-muted">
                         {spotLabels(tenant?.torrinha_spots)}
                       </td>
-                      <td className="px-4 py-2 text-sm text-gray-400">
+                      <td className="px-4 py-2 text-sm text-t-text-muted">
                         {tenant?.name ?? "—"}
                       </td>
-                      <td className="px-4 py-2 text-sm text-gray-400">
+                      <td className="px-4 py-2 text-sm text-t-text-muted">
                         {r.count}
                       </td>
-                      <td className="px-4 py-2 text-sm text-gray-400">
+                      <td className="px-4 py-2 text-sm text-t-text-muted">
                         {r.deposit_paid ? `€${r.deposit_eur}` : "—"}
                       </td>
-                      <td className="px-4 py-2 text-sm text-gray-400">
+                      <td className="px-4 py-2 text-sm text-t-text-muted">
                         Issued: {r.issued_date ?? "—"}
                       </td>
-                      <td className="px-4 py-2 text-sm text-gray-400">
+                      <td className="px-4 py-2 text-sm text-t-text-muted">
                         Returned: {r.returned_date}
                       </td>
                     </tr>
@@ -464,21 +464,21 @@ function AddRemoteForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="bg-white rounded-lg shadow p-5 mb-6"
+      className="bg-t-surface border border-t-border rounded-[var(--t-radius-lg)] p-5 mb-6"
     >
-      <h2 className="text-lg font-semibold text-gray-900 mb-4">
+      <h2 className="text-lg font-semibold text-t-text mb-4">
         Issue Remote Control
       </h2>
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">
+          <label className="block text-xs font-medium text-t-text-muted mb-1">
             Tenant *
           </label>
           <select
             value={form.tenant_id}
             onChange={(e) => set("tenant_id", e.target.value)}
             required
-            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm text-gray-900"
+            className="w-full px-2 py-1.5 border border-t-border rounded-[var(--t-radius-sm)] text-sm text-t-text"
           >
             <option value="">Select tenant...</option>
             {activeTenants.map((t) => (
@@ -490,7 +490,7 @@ function AddRemoteForm({
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">
+          <label className="block text-xs font-medium text-t-text-muted mb-1">
             Count
           </label>
           <input
@@ -498,24 +498,24 @@ function AddRemoteForm({
             min="1"
             value={form.count}
             onChange={(e) => set("count", e.target.value)}
-            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm text-gray-900"
+            className="w-full px-2 py-1.5 border border-t-border rounded-[var(--t-radius-sm)] text-sm text-t-text"
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">
+          <label className="block text-xs font-medium text-t-text-muted mb-1">
             Deposit Paid
           </label>
           <select
             value={form.deposit_paid ? "true" : "false"}
             onChange={(e) => set("deposit_paid", e.target.value === "true")}
-            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm text-gray-900"
+            className="w-full px-2 py-1.5 border border-t-border rounded-[var(--t-radius-sm)] text-sm text-t-text"
           >
             <option value="false">No</option>
             <option value="true">Yes</option>
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">
+          <label className="block text-xs font-medium text-t-text-muted mb-1">
             Deposit &euro;
           </label>
           <input
@@ -524,18 +524,18 @@ function AddRemoteForm({
             min="0"
             value={form.deposit_eur}
             onChange={(e) => set("deposit_eur", e.target.value)}
-            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm text-gray-900"
+            className="w-full px-2 py-1.5 border border-t-border rounded-[var(--t-radius-sm)] text-sm text-t-text"
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">
+          <label className="block text-xs font-medium text-t-text-muted mb-1">
             Issued Date
           </label>
           <input
             type="date"
             value={form.issued_date}
             onChange={(e) => set("issued_date", e.target.value)}
-            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm text-gray-900"
+            className="w-full px-2 py-1.5 border border-t-border rounded-[var(--t-radius-sm)] text-sm text-t-text"
           />
         </div>
       </div>
@@ -543,7 +543,7 @@ function AddRemoteForm({
         <button
           type="submit"
           disabled={saving}
-          className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50"
+          className="px-4 py-2 bg-t-accent text-white text-sm rounded-[var(--t-radius-sm)] hover:bg-t-accent-hover disabled:opacity-50"
         >
           {saving ? "Issuing..." : "Issue Remote"}
         </button>
