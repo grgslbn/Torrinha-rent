@@ -20,6 +20,7 @@ type SpotData = {
     amount_eur: number | null;
     paid_date: string | null;
   }[];
+  incoming_tenant: { name: string; start_date: string } | null;
 };
 
 type TenantHistoryRow = {
@@ -154,14 +155,23 @@ export default function DashboardClient({
                 const borderStyle = isLabelled ? "border-dashed border-2" : isOwner(spot) ? "" : "border";
                 const isSelected = selectedSpot === spot.number;
 
+                const hasIncoming = !!spot.incoming_tenant;
+                const tooltipParts: string[] = [];
+                if (spot.tenant_name) tooltipParts.push(`Now: ${spot.tenant_name}`);
+                if (hasIncoming) tooltipParts.push(`→ ${spot.incoming_tenant!.name} from ${spot.incoming_tenant!.start_date}`);
+
                 return (
                   <button
                     key={spot.number}
                     onClick={() => setSelectedSpot(isSelected ? null : spot.number)}
-                    className={`p-3 rounded text-center text-sm font-medium ${borderStyle} ${color} transition-all ${
+                    title={tooltipParts.join("\n") || undefined}
+                    className={`p-3 rounded text-center text-sm font-medium ${borderStyle} ${color} transition-all relative ${
                       isSelected ? "ring-2 ring-blue-500" : "hover:ring-2 hover:ring-blue-300"
                     }`}
                   >
+                    {hasIncoming && (
+                      <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-blue-400" title={`Incoming: ${spot.incoming_tenant!.name} from ${spot.incoming_tenant!.start_date}`} />
+                    )}
                     {displayName}
                     {spot.tenant_name && !isOwner(spot) && (
                       <span className="block text-xs truncate opacity-70">{spot.tenant_name}</span>
@@ -181,6 +191,7 @@ export default function DashboardClient({
               <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-red-100 border border-red-300 inline-block" /> Overdue</span>
               <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-gray-100 border border-gray-200 inline-block" /> Vacant</span>
               <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-gray-200 inline-block" /> Owner</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-400 inline-block" /> Incoming tenant</span>
             </div>
           </div>
 
@@ -201,6 +212,12 @@ export default function DashboardClient({
                     STATUS_BADGE[activeSpot.payment_status ?? ""] ?? "bg-gray-100 text-gray-500"
                   }`}>{spotStatusLabel(activeSpot)}</span>
                 </p>
+                {activeSpot.incoming_tenant && (
+                  <p className="mt-1 pt-1 border-t border-gray-100 text-blue-700">
+                    <span className="font-medium">Incoming:</span> {activeSpot.incoming_tenant.name}{" "}
+                    <span className="text-blue-500">from {activeSpot.incoming_tenant.start_date}</span>
+                  </p>
+                )}
               </div>
 
               {/* Payment history */}

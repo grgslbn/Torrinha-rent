@@ -43,5 +43,10 @@ export function startCrons() {
     timezone: "UTC",
   });
 
-  console.log("[cron] Scheduled: reset-month(1st), alert-owner(5th), remind-tenants(8th), escalate(15th)");
+  // Daily 06:00 UTC — auto-transition future→active and active→inactive
+  cron.schedule("0 6 * * *", () => callCron("/cron/transition-spots"), {
+    timezone: "UTC",
+  });
+
+  console.log("[cron] Scheduled: reset-month(1st), alert-owner(5th), remind-tenants(8th), escalate(15th), transition-spots(daily 06:00)");
 }

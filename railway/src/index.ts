@@ -241,15 +241,32 @@ app.post("/cron/reset-month", requireCronSecret, async (_req, res) => {
     const db = supabase();
     const month = currentMonthStr();
 
-    // Get all active tenants
-    const { data: tenants } = await db
-      .from("torrinha_tenants")
-      .select("id, rent_eur")
-      .eq("active", true);
+    // Compute first and last day of month
+    const [year, mo] = month.split("-").map(Number);
+    const firstDay = `${month}-01`;
+    const lastDay = new Date(year, mo, 0).toISOString().split("T")[0]; // last day of month
 
-    if (!tenants || tenants.length === 0) {
-      res.json({ message: "No active tenants", created: 0 });
+    // Get all tenants who have an assignment that overlaps with this month
+    // i.e. start_date <= lastDay AND (end_date IS NULL OR end_date >= firstDay)
+    const { data: assignments } = await db
+      .from("torrinha_spot_assignments")
+      .select("tenant_id, torrinha_tenants(id, rent_eur, status)")
+      .lte("start_date", lastDay)
+      .or(`end_date.is.null,end_date.gte.${firstDay}`);
+
+    if (!assignments || assignments.length === 0) {
+      res.json({ message: "No assignments for this month", created: 0 });
       return;
+    }
+
+    // Deduplicate by tenant_id (a tenant can have multiple spots)
+    const tenantMap = new Map<string, number>();
+    for (const a of assignments) {
+      const t = Array.isArray(a.torrinha_tenants) ? a.torrinha_tenants[0] : a.torrinha_tenants;
+      const tenant = t as { id: string; rent_eur: number; status: string } | null;
+      if (tenant && !tenantMap.has(tenant.id)) {
+        tenantMap.set(tenant.id, Number(tenant.rent_eur));
+      }
     }
 
     // Check which tenants already have a row for this month
@@ -260,13 +277,13 @@ app.post("/cron/reset-month", requireCronSecret, async (_req, res) => {
 
     const existingSet = new Set(existing?.map((e) => e.tenant_id) ?? []);
 
-    const toInsert = tenants
-      .filter((t) => !existingSet.has(t.id))
-      .map((t) => ({
-        tenant_id: t.id,
+    const toInsert = [...tenantMap.entries()]
+      .filter(([id]) => !existingSet.has(id))
+      .map(([id, rent_eur]) => ({
+        tenant_id: id,
         month,
         status: "pending",
-        amount_eur: t.rent_eur,
+        amount_eur: rent_eur,
       }));
 
     if (toInsert.length === 0) {
@@ -703,6 +720,119 @@ app.get("/inbox/pending-count", requireCronSecret, async (_req, res) => {
   } catch (err) {
     console.error("[pending-count] Error:", err);
     res.status(500).json({ error: "Failed to get count" });
+  }
+});
+
+// ============================================================
+// POST /cron/transition-spots — daily: flip future→active, active→inactive
+// ============================================================
+
+app.post("/cron/transition-spots", requireCronSecret, async (_req, res) => {
+  try {
+    const db = supabase();
+    const todayStr = today();
+
+    let activated = 0;
+    let deactivated = 0;
+
+    // 1. Find future tenants whose assignment start_date <= today → activate
+    const { data: toActivate } = await db
+      .from("torrinha_spot_assignments")
+      .select("tenant_id, spot_id, torrinha_tenants(id, status)")
+      .lte("start_date", todayStr)
+      .or(`end_date.is.null,end_date.gte.${todayStr}`);
+
+    const futureToActivate = (toActivate ?? []).filter((a) => {
+      const t = Array.isArray(a.torrinha_tenants) ? a.torrinha_tenants[0] : a.torrinha_tenants;
+      return (t as { id: string; status: string } | null)?.status === "future";
+    });
+
+    for (const a of futureToActivate) {
+      const t = Array.isArray(a.torrinha_tenants) ? a.torrinha_tenants[0] : a.torrinha_tenants;
+      const tenant = t as { id: string; status: string } | null;
+      if (!tenant) continue;
+
+      await db
+        .from("torrinha_tenants")
+        .update({ status: "active", active: true })
+        .eq("id", tenant.id);
+
+      // Update spot cache
+      await db
+        .from("torrinha_spots")
+        .update({ tenant_id: a.tenant_id })
+        .eq("id", a.spot_id);
+
+      activated++;
+    }
+
+    // 2. Find active tenants whose assignments have all ended → deactivate
+    // An active tenant should be deactivated only if they have NO open or future assignment
+    // AND their last assignment ended before or on today AND they have no unpaid/overdue payments
+    const { data: endedAssignments } = await db
+      .from("torrinha_spot_assignments")
+      .select("tenant_id, spot_id")
+      .lt("end_date", todayStr);
+
+    // Collect candidate tenant IDs (those with an ended assignment today)
+    const endedTodayTenants = new Set(
+      (endedAssignments ?? [])
+        .filter((a) => a.end_date === todayStr || (a.end_date && a.end_date < todayStr))
+        .map((a) => a.tenant_id)
+    );
+
+    for (const tenantId of endedTodayTenants) {
+      // Check if tenant has any active/future assignment remaining
+      const { data: openAssignments } = await db
+        .from("torrinha_spot_assignments")
+        .select("id")
+        .eq("tenant_id", tenantId)
+        .or(`end_date.is.null,end_date.gte.${todayStr}`)
+        .limit(1);
+
+      if (openAssignments && openAssignments.length > 0) continue; // still has active spot
+
+      // Check tenant status
+      const { data: tenant } = await db
+        .from("torrinha_tenants")
+        .select("status")
+        .eq("id", tenantId)
+        .single();
+
+      if (tenant?.status !== "active") continue;
+
+      // Check for unpaid/overdue payments — don't auto-deactivate if debt outstanding
+      const { data: unpaid } = await db
+        .from("torrinha_payments")
+        .select("id")
+        .eq("tenant_id", tenantId)
+        .in("status", ["pending", "overdue"])
+        .limit(1);
+
+      if (unpaid && unpaid.length > 0) {
+        console.log(`[transition-spots] Skipping deactivation of ${tenantId} — has unpaid payments`);
+        continue;
+      }
+
+      await db
+        .from("torrinha_tenants")
+        .update({ status: "inactive", active: false })
+        .eq("id", tenantId);
+
+      // Clear spot cache for spots this tenant occupied
+      await db
+        .from("torrinha_spots")
+        .update({ tenant_id: null })
+        .eq("tenant_id", tenantId);
+
+      deactivated++;
+    }
+
+    console.log(`[transition-spots] Activated: ${activated}, Deactivated: ${deactivated}`);
+    res.json({ activated, deactivated, date: todayStr });
+  } catch (err) {
+    console.error("[transition-spots] Error:", err);
+    res.status(500).json({ error: "Failed to run transitions" });
   }
 });
 

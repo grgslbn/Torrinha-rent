@@ -38,6 +38,8 @@ export default async function AdminDashboard() {
   const month = currentMonthStr();
   const months6 = prevMonths(6);
 
+  const today = new Date().toISOString().split("T")[0];
+
   const [
     { data: activeTenantsRaw },
     { data: spotsRaw },
@@ -45,6 +47,7 @@ export default async function AdminDashboard() {
     { count: waitlistCount },
     { data: remotesRaw },
     { count: unmatchedCount },
+    { data: futureAssignmentsRaw },
   ] = await Promise.all([
     supabase
       .from("torrinha_tenants")
@@ -53,7 +56,7 @@ export default async function AdminDashboard() {
       .order("name"),
     supabase
       .from("torrinha_spots")
-      .select("number, label, tenant_id, torrinha_tenants(id, name, rent_eur)")
+      .select("id, number, label, tenant_id, torrinha_tenants(id, name, rent_eur)")
       .order("number"),
     supabase
       .from("torrinha_payments")
@@ -71,6 +74,11 @@ export default async function AdminDashboard() {
       .from("torrinha_unmatched_transactions")
       .select("*", { count: "exact", head: true })
       .eq("reviewed", false),
+    supabase
+      .from("torrinha_spot_assignments")
+      .select("spot_id, start_date, torrinha_tenants(name)")
+      .gt("start_date", today)
+      .order("start_date", { ascending: true }),
   ]);
 
   const activeTenants = (activeTenantsRaw ?? []) as unknown as {
@@ -117,6 +125,7 @@ export default async function AdminDashboard() {
     payment_status: string | null;
     reminder_sent: boolean;
     payment_history: { month: string; status: string; amount_eur: number | null; paid_date: string | null }[];
+    incoming_tenant: { name: string; start_date: string } | null;
   };
 
   const tenantStartDates = new Map<string, string>();
@@ -124,7 +133,19 @@ export default async function AdminDashboard() {
     tenantStartDates.set(t.id, t.start_date);
   }
 
+  // Build map: spot_id → first upcoming assignment
+  const incomingBySpot = new Map<string, { name: string; start_date: string }>();
+  for (const a of (futureAssignmentsRaw ?? []) as unknown as { spot_id: string; start_date: string; torrinha_tenants: { name: string } | null }[]) {
+    if (!incomingBySpot.has(a.spot_id)) {
+      incomingBySpot.set(a.spot_id, {
+        name: a.torrinha_tenants?.name ?? "Unknown",
+        start_date: a.start_date,
+      });
+    }
+  }
+
   const spots: SpotData[] = ((spotsRaw ?? []) as unknown as {
+    id: string;
     number: number;
     label: string | null;
     tenant_id: string | null;
@@ -152,6 +173,7 @@ export default async function AdminDashboard() {
       payment_status: payment?.status ?? null,
       reminder_sent: !!payment?.reminder_sent_at,
       payment_history: history,
+      incoming_tenant: incomingBySpot.get(s.id) ?? null,
     };
   });
 
