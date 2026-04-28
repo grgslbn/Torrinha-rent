@@ -746,7 +746,7 @@ app.post("/cron/transition-spots", requireCronSecret, async (_req, res) => {
 
     const futureToActivate = (toActivate ?? []).filter((a) => {
       const t = Array.isArray(a.torrinha_tenants) ? a.torrinha_tenants[0] : a.torrinha_tenants;
-      return (t as { id: string; status: string } | null)?.status === "future";
+      return (t as { id: string; status: string } | null)?.status === "upcoming";
     });
 
     for (const a of futureToActivate) {

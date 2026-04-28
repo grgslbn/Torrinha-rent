@@ -13,7 +13,7 @@ export async function GET() {
     .select(
       "*, torrinha_spots!torrinha_spots_tenant_id_fkey(id, number, label), torrinha_remotes(id, count, deposit_paid, returned_date)"
     )
-    .order("status", { ascending: true }) // active → future → inactive
+    .order("status", { ascending: true }) // active → inactive → upcoming (alphabetical, UI groups them)
     .order("created_at", { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -45,7 +45,8 @@ export async function POST(request: NextRequest) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await request.json();
-  const { spot_ids, name, email, phone, language, rent_eur, payment_due_day, start_date, notes } = body;
+  // departing_end_dates: map of spot_id → end_date for the current tenant being displaced
+  const { spot_ids, departing_end_dates, name, email, phone, language, rent_eur, payment_due_day, start_date, notes } = body;
 
   if (!name || !email || !rent_eur || !start_date) {
     return NextResponse.json(
@@ -55,7 +56,7 @@ export async function POST(request: NextRequest) {
   }
 
   const today = new Date().toISOString().split("T")[0];
-  const status = start_date > today ? "future" : "active";
+  const status = start_date > today ? "upcoming" : "active";
 
   // Insert tenant
   const { data: tenant, error: tenantError } = await supabase
@@ -77,8 +78,22 @@ export async function POST(request: NextRequest) {
 
   if (tenantError) return NextResponse.json({ error: tenantError.message }, { status: 500 });
 
-  // If spots provided, create assignments + update cache for immediate ones
+  // If spots provided, handle departing tenants then create new assignments
   if (spot_ids && Array.isArray(spot_ids) && spot_ids.length > 0) {
+    // First: set end_date on any departing tenant's assignment for each spot
+    // departing_end_dates is { [spot_id]: "YYYY-MM-DD" }
+    if (departing_end_dates && typeof departing_end_dates === "object") {
+      for (const [spot_id, end_date] of Object.entries(departing_end_dates)) {
+        if (!end_date) continue;
+        await supabase
+          .from("torrinha_spot_assignments")
+          .update({ end_date })
+          .eq("spot_id", spot_id)
+          .is("end_date", null); // only update the open-ended assignment
+      }
+    }
+
+    // Create new assignments for the incoming tenant
     const assignments = spot_ids.map((sid: string) => ({
       tenant_id: tenant.id,
       spot_id: sid,
@@ -91,10 +106,9 @@ export async function POST(request: NextRequest) {
 
     if (assignError) {
       if (assignError.code === "23P01") {
-        // Roll back tenant creation on overlap
         await supabase.from("torrinha_tenants").delete().eq("id", tenant.id);
         return NextResponse.json(
-          { error: "One or more spots have overlapping assignments on the selected start date." },
+          { error: "One or more spots have overlapping assignments on the selected start date. Check the departing tenant's last day." },
           { status: 409 }
         );
       }

@@ -38,7 +38,7 @@ type Tenant = {
   start_date: string;
   notes: string | null;
   active: boolean;
-  status: "active" | "future" | "inactive";
+  status: "active" | "upcoming" | "inactive";
   access_token: string | null;
   torrinha_spots: { id: string; number: number; label: string | null }[];
   torrinha_remotes: Remote[];
@@ -48,7 +48,7 @@ type Tenant = {
 type EditingCell = { tenantId: string; field: string } | null;
 
 function spotLabel(s: { number: number; label?: string | null }): string {
-  return s.label || `Spot ${s.number}`;
+  return s.label || `${s.number}`;
 }
 
 function spotLabels(t: Tenant): string {
@@ -60,7 +60,7 @@ function spotLabels(t: Tenant): string {
     .join(", ");
 }
 
-function futureSpotLabels(t: Tenant): string | null {
+function upcomingSpotLabel(t: Tenant): string | null {
   if (!t.future_assignments || t.future_assignments.length === 0) return null;
   return t.future_assignments
     .map((a) => {
@@ -79,10 +79,10 @@ function StatusBadge({ status }: { status: Tenant["status"] }) {
       </span>
     );
   }
-  if (status === "future") {
+  if (status === "upcoming") {
     return (
       <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">
-        Future
+        Upcoming
       </span>
     );
   }
@@ -102,6 +102,7 @@ export default function TenantsClient() {
   const [editValue, setEditValue] = useState("");
   const [saving, setSaving] = useState(false);
   const [deactivating, setDeactivating] = useState<Tenant | null>(null);
+  const [assigningSpot, setAssigningSpot] = useState<Tenant | null>(null);
   const [error, setError] = useState("");
 
   const fetchData = useCallback(async () => {
@@ -114,14 +115,10 @@ export default function TenantsClient() {
     setLoading(false);
   }, []);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   const remoteCount = (t: Tenant) =>
-    t.torrinha_remotes
-      ?.filter((r) => !r.returned_date)
-      .reduce((sum, r) => sum + r.count, 0) ?? 0;
+    t.torrinha_remotes?.filter((r) => !r.returned_date).reduce((sum, r) => sum + r.count, 0) ?? 0;
 
   function startEdit(tenantId: string, field: string, currentValue: string) {
     setEditingCell({ tenantId, field });
@@ -161,17 +158,11 @@ export default function TenantsClient() {
       return <span className="text-gray-400">{displayValue}</span>;
     }
     const isEditing = editingCell?.tenantId === tenant.id && editingCell?.field === field;
-
     if (isEditing) {
       if (field === "language") {
         return (
-          <select
-            value={editValue}
-            onChange={(e) => setEditValue(e.target.value)}
-            onBlur={saveEdit}
-            autoFocus
-            className="w-full px-1 py-0.5 border border-blue-300 rounded text-sm text-gray-900"
-          >
+          <select value={editValue} onChange={(e) => setEditValue(e.target.value)} onBlur={saveEdit} autoFocus
+            className="w-full px-1 py-0.5 border border-blue-300 rounded text-sm text-gray-900">
             <option value="pt">PT</option>
             <option value="en">EN</option>
           </select>
@@ -179,36 +170,21 @@ export default function TenantsClient() {
       }
       if (field === "notes") {
         return (
-          <textarea
-            value={editValue}
-            onChange={(e) => setEditValue(e.target.value)}
-            onBlur={saveEdit}
+          <textarea value={editValue} onChange={(e) => setEditValue(e.target.value)} onBlur={saveEdit}
             onKeyDown={(e) => { if (e.key === "Escape") setEditingCell(null); }}
-            autoFocus
-            rows={2}
-            className="w-full px-1 py-0.5 border border-blue-300 rounded text-sm text-gray-900"
-          />
+            autoFocus rows={2}
+            className="w-full px-1 py-0.5 border border-blue-300 rounded text-sm text-gray-900" />
         );
       }
       return (
-        <input
-          type={inputType}
-          value={editValue}
-          onChange={(e) => setEditValue(e.target.value)}
-          onBlur={saveEdit}
-          onKeyDown={handleEditKeyDown}
-          autoFocus
-          className="w-full px-1 py-0.5 border border-blue-300 rounded text-sm text-gray-900"
-        />
+        <input type={inputType} value={editValue} onChange={(e) => setEditValue(e.target.value)}
+          onBlur={saveEdit} onKeyDown={handleEditKeyDown} autoFocus
+          className="w-full px-1 py-0.5 border border-blue-300 rounded text-sm text-gray-900" />
       );
     }
-
     return (
-      <span
-        onClick={() => startEdit(tenant.id, field, String(tenant[field] ?? ""))}
-        className="cursor-pointer hover:bg-blue-50 px-1 py-0.5 rounded -mx-1 block"
-        title="Click to edit"
-      >
+      <span onClick={() => startEdit(tenant.id, field, String(tenant[field] ?? ""))}
+        className="cursor-pointer hover:bg-blue-50 px-1 py-0.5 rounded -mx-1 block" title="Click to edit">
         {displayValue || "—"}
       </span>
     );
@@ -237,7 +213,7 @@ export default function TenantsClient() {
   }
 
   const activeTenants = tenants.filter((t) => t.status === "active");
-  const futureTenants = tenants.filter((t) => t.status === "future");
+  const upcomingTenants = tenants.filter((t) => t.status === "upcoming");
   const inactiveTenants = tenants.filter((t) => t.status === "inactive");
 
   const tableHeaders = (
@@ -254,13 +230,14 @@ export default function TenantsClient() {
       <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Lang</th>
       <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Notes</th>
       <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Portal</th>
-      <th className="px-3 py-3 w-20"></th>
+      <th className="px-3 py-3 w-28"></th>
     </tr>
   );
 
   function renderTenantRow(t: Tenant) {
-    const futureLabel = futureSpotLabels(t);
+    const upcomingLabel = upcomingSpotLabel(t);
     const isInactive = t.status === "inactive";
+    const hasNoSpot = t.torrinha_spots.length === 0 && t.future_assignments.length === 0;
 
     return (
       <tr key={t.id} className={`hover:bg-gray-50 ${isInactive ? "opacity-50" : ""}`}>
@@ -268,49 +245,38 @@ export default function TenantsClient() {
           <StatusBadge status={t.status} />
         </td>
         <td className="px-3 py-3 text-sm text-gray-900 font-medium">
-          <div>{spotLabels(t)}</div>
-          {futureLabel && (
-            <div className="text-xs text-blue-600 mt-0.5" title="Upcoming assignment">
-              → {futureLabel}
+          {hasNoSpot && !isInactive ? (
+            <div>
+              <span className="text-gray-400 text-xs">No spot</span>
+              <button
+                onClick={() => setAssigningSpot(t)}
+                className="block text-xs text-blue-600 hover:text-blue-800 hover:underline mt-0.5"
+              >
+                Assign spot →
+              </button>
+            </div>
+          ) : (
+            <div>
+              <div>{spotLabels(t)}</div>
+              {upcomingLabel && (
+                <div className="text-xs text-blue-600 mt-0.5">→ {upcomingLabel}</div>
+              )}
             </div>
           )}
         </td>
-        <td className="px-3 py-3 text-sm text-gray-900">
-          {renderEditableCell(t, "name", t.name)}
-        </td>
-        <td className="px-3 py-3 text-sm text-gray-500">
-          {renderEditableCell(t, "email", t.email, "email")}
-        </td>
-        <td className="px-3 py-3 text-sm text-gray-500">
-          {renderEditableCell(t, "phone", t.phone || "", "tel")}
-        </td>
-        <td className="px-3 py-3 text-sm text-gray-900">
-          {renderEditableCell(t, "rent_eur", `€${t.rent_eur}`, "number")}
-        </td>
-        <td className="px-3 py-3 text-sm text-gray-500">
-          {renderEditableCell(t, "payment_due_day", String(t.payment_due_day), "number")}
-        </td>
-        <td className="px-3 py-3 text-sm text-gray-500">
-          {renderEditableCell(t, "start_date", t.start_date, "date")}
-        </td>
-        <td className="px-3 py-3 text-sm text-gray-900 text-center">
-          {remoteCount(t)}
-        </td>
-        <td className="px-3 py-3 text-sm text-gray-500 uppercase">
-          {renderEditableCell(t, "language", t.language.toUpperCase())}
-        </td>
-        <td className="px-3 py-3 text-sm text-gray-400 max-w-[120px] truncate">
-          {renderEditableCell(t, "notes", t.notes || "")}
-        </td>
-        <td className="px-3 py-3 text-sm">
-          <PortalLinkCell token={t.access_token} />
-        </td>
+        <td className="px-3 py-3 text-sm text-gray-900">{renderEditableCell(t, "name", t.name)}</td>
+        <td className="px-3 py-3 text-sm text-gray-500">{renderEditableCell(t, "email", t.email, "email")}</td>
+        <td className="px-3 py-3 text-sm text-gray-500">{renderEditableCell(t, "phone", t.phone || "", "tel")}</td>
+        <td className="px-3 py-3 text-sm text-gray-900">{renderEditableCell(t, "rent_eur", `€${t.rent_eur}`, "number")}</td>
+        <td className="px-3 py-3 text-sm text-gray-500">{renderEditableCell(t, "payment_due_day", String(t.payment_due_day), "number")}</td>
+        <td className="px-3 py-3 text-sm text-gray-500">{renderEditableCell(t, "start_date", t.start_date, "date")}</td>
+        <td className="px-3 py-3 text-sm text-gray-900 text-center">{remoteCount(t)}</td>
+        <td className="px-3 py-3 text-sm text-gray-500 uppercase">{renderEditableCell(t, "language", t.language.toUpperCase())}</td>
+        <td className="px-3 py-3 text-sm text-gray-400 max-w-[120px] truncate">{renderEditableCell(t, "notes", t.notes || "")}</td>
+        <td className="px-3 py-3 text-sm"><PortalLinkCell token={t.access_token} /></td>
         <td className="px-3 py-3 text-sm">
           {t.status !== "inactive" && (
-            <button
-              onClick={() => setDeactivating(t)}
-              className="text-red-500 hover:text-red-700 text-xs"
-            >
+            <button onClick={() => setDeactivating(t)} className="text-red-500 hover:text-red-700 text-xs">
               Deactivate
             </button>
           )}
@@ -326,7 +292,7 @@ export default function TenantsClient() {
           Tenants{" "}
           <span className="text-base font-normal text-gray-400">
             {activeTenants.length} active
-            {futureTenants.length > 0 && ` · ${futureTenants.length} incoming`}
+            {upcomingTenants.length > 0 && ` · ${upcomingTenants.length} upcoming`}
           </span>
         </h1>
         <button
@@ -352,19 +318,19 @@ export default function TenantsClient() {
         />
       )}
 
-      {/* Active + Future tenants */}
+      {/* Active + Upcoming tenants */}
       <div className="bg-white rounded-lg shadow overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">{tableHeaders}</thead>
           <tbody className="divide-y divide-gray-200">
-            {activeTenants.length === 0 && futureTenants.length === 0 ? (
+            {activeTenants.length === 0 && upcomingTenants.length === 0 ? (
               <tr>
                 <td colSpan={13} className="px-4 py-8 text-center text-sm text-gray-500">
                   No tenants. Click &quot;Add Tenant&quot; to get started.
                 </td>
               </tr>
             ) : (
-              [...activeTenants, ...futureTenants].map(renderTenantRow)
+              [...activeTenants, ...upcomingTenants].map(renderTenantRow)
             )}
           </tbody>
         </table>
@@ -394,6 +360,16 @@ export default function TenantsClient() {
           onCancel={() => setDeactivating(null)}
         />
       )}
+
+      {assigningSpot && (
+        <AssignSpotModal
+          tenant={assigningSpot}
+          allSpots={allSpots}
+          onSuccess={() => { setAssigningSpot(null); fetchData(); }}
+          onError={setError}
+          onCancel={() => setAssigningSpot(null)}
+        />
+      )}
     </div>
   );
 }
@@ -420,30 +396,47 @@ function AddTenantForm({
     start_date: today,
     notes: "",
   });
+  // Map of spot_id → last day (end_date) for the departing tenant on that spot
+  const [departingEndDates, setDepartingEndDates] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
 
-  const isFuture = form.start_date > today;
+  const isUpcoming = form.start_date > today;
 
   function set(field: string, value: string) {
     setForm((f) => ({ ...f, [field]: value }));
   }
 
   function toggleSpot(spotId: string) {
-    setForm((f) => ({
-      ...f,
-      spot_ids: f.spot_ids.includes(spotId)
-        ? f.spot_ids.filter((id) => id !== spotId)
-        : [...f.spot_ids, spotId],
-    }));
+    setForm((f) => {
+      const already = f.spot_ids.includes(spotId);
+      const next = already ? f.spot_ids.filter((id) => id !== spotId) : [...f.spot_ids, spotId];
+      // Clear departing date if deselecting
+      if (already) {
+        setDepartingEndDates((d) => { const n = { ...d }; delete n[spotId]; return n; });
+      }
+      return { ...f, spot_ids: next };
+    });
+  }
+
+  function setDepartingDate(spotId: string, value: string) {
+    setDepartingEndDates((d) => ({ ...d, [spotId]: value }));
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    // Validate departing dates come before new tenant's start
+    for (const [spotId, endDate] of Object.entries(departingEndDates)) {
+      if (endDate && endDate >= form.start_date) {
+        const spot = allSpots.find((s) => s.id === spotId);
+        onError(`${spot?.tenant_name ?? "Departing tenant"}'s last day must be before ${form.start_date}`);
+        return;
+      }
+    }
     setSaving(true);
     const res = await fetch("/api/tenants", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
+      body: JSON.stringify({ ...form, departing_end_dates: departingEndDates }),
     });
     if (res.ok) {
       onSuccess();
@@ -454,16 +447,17 @@ function AddTenantForm({
     setSaving(false);
   }
 
-  const selectedSpots = allSpots.filter((s) => form.spot_ids.includes(s.id));
-  const hasOccupiedSelected = selectedSpots.some((s) => s.occupied);
+  const selectedOccupiedSpots = allSpots.filter(
+    (s) => form.spot_ids.includes(s.id) && s.occupied
+  );
 
   return (
     <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-5 mb-6">
       <div className="flex items-center gap-3 mb-4">
         <h2 className="text-lg font-semibold text-gray-900">Add New Tenant</h2>
-        {isFuture && (
+        {isUpcoming && (
           <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">
-            Future tenant — starts {form.start_date}
+            Upcoming — starts {form.start_date}
           </span>
         )}
       </div>
@@ -472,7 +466,7 @@ function AddTenantForm({
         {/* Spot selector */}
         <div className="col-span-2 sm:col-span-4">
           <label className="block text-xs font-medium text-gray-600 mb-1">
-            Spots <span className="text-gray-400 font-normal">(optional — can assign later)</span>
+            Spot <span className="text-gray-400 font-normal">(optional — can assign later)</span>
           </label>
           {allSpots.length === 0 ? (
             <p className="text-xs text-gray-400">Loading spots…</p>
@@ -480,32 +474,26 @@ function AddTenantForm({
             <div className="flex flex-wrap gap-2">
               {allSpots.map((s) => {
                 const selected = form.spot_ids.includes(s.id);
-                const occupied = s.occupied && !selected;
                 return (
                   <button
                     key={s.id}
                     type="button"
                     onClick={() => toggleSpot(s.id)}
-                    title={s.occupied ? `Currently: ${s.tenant_name ?? "occupied"}${s.incoming_tenant ? ` · Next: ${s.incoming_tenant.tenant_name} from ${s.incoming_tenant.start_date}` : ""}` : ""}
-                    className={`px-3 py-1.5 rounded text-sm font-medium border transition-colors relative ${
+                    title={s.occupied ? `Currently: ${s.tenant_name ?? "occupied"}` : "Vacant"}
+                    className={`px-3 py-1.5 rounded text-sm font-medium border transition-colors ${
                       selected
                         ? "bg-blue-600 text-white border-blue-600"
-                        : occupied
+                        : s.occupied
                         ? "bg-amber-50 text-amber-700 border-amber-300 hover:border-amber-500"
                         : "bg-white text-gray-700 border-gray-300 hover:border-blue-400"
                     }`}
                   >
                     {spotLabel(s)}
-                    {occupied && <span className="ml-1 text-xs opacity-60">●</span>}
+                    {s.occupied && !selected && <span className="ml-1 text-xs opacity-70">({s.tenant_name})</span>}
                   </button>
                 );
               })}
             </div>
-          )}
-          {hasOccupiedSelected && (
-            <p className="text-xs text-amber-600 mt-1">
-              One or more selected spots are currently occupied. The assignment will start on the selected date — make sure the current tenant&apos;s end date is set to avoid conflicts.
-            </p>
           )}
           {form.spot_ids.length > 0 && (
             <p className="text-xs text-gray-500 mt-1">
@@ -514,124 +502,220 @@ function AddTenantForm({
           )}
         </div>
 
+        {/* Departing tenant date pickers for each occupied spot selected */}
+        {selectedOccupiedSpots.length > 0 && (
+          <div className="col-span-2 sm:col-span-4">
+            {selectedOccupiedSpots.map((s) => (
+              <div key={s.id} className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded mb-2">
+                <div className="flex-1 text-sm text-amber-800">
+                  <span className="font-medium">Spot {spotLabel(s)}</span> is currently occupied by{" "}
+                  <span className="font-medium">{s.tenant_name}</span>.
+                  When is their last day?
+                </div>
+                <input
+                  type="date"
+                  value={departingEndDates[s.id] ?? ""}
+                  max={form.start_date ? new Date(new Date(form.start_date).getTime() - 86400000).toISOString().split("T")[0] : undefined}
+                  onChange={(e) => setDepartingDate(s.id, e.target.value)}
+                  required
+                  className="px-2 py-1 border border-amber-300 rounded text-sm text-gray-900 bg-white"
+                />
+              </div>
+            ))}
+          </div>
+        )}
+
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Name *</label>
-          <input
-            type="text"
-            value={form.name}
-            onChange={(e) => set("name", e.target.value)}
-            required
-            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm text-gray-900"
-          />
+          <input type="text" value={form.name} onChange={(e) => set("name", e.target.value)} required
+            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm text-gray-900" />
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Email *</label>
-          <input
-            type="email"
-            value={form.email}
-            onChange={(e) => set("email", e.target.value)}
-            required
-            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm text-gray-900"
-          />
+          <input type="email" value={form.email} onChange={(e) => set("email", e.target.value)} required
+            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm text-gray-900" />
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Phone</label>
-          <input
-            type="tel"
-            value={form.phone}
-            onChange={(e) => set("phone", e.target.value)}
-            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm text-gray-900"
-          />
+          <input type="tel" value={form.phone} onChange={(e) => set("phone", e.target.value)}
+            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm text-gray-900" />
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Rent (EUR) *</label>
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            value={form.rent_eur}
-            onChange={(e) => set("rent_eur", e.target.value)}
-            required
-            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm text-gray-900"
-          />
+          <input type="number" step="0.01" min="0" value={form.rent_eur}
+            onChange={(e) => set("rent_eur", e.target.value)} required
+            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm text-gray-900" />
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Due Day</label>
-          <input
-            type="number"
-            min="1"
-            max="28"
-            value={form.payment_due_day}
+          <input type="number" min="1" max="28" value={form.payment_due_day}
             onChange={(e) => set("payment_due_day", e.target.value)}
-            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm text-gray-900"
-          />
+            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm text-gray-900" />
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">
-            Start Date *
-            {isFuture && <span className="ml-1 text-blue-600 font-normal">(future)</span>}
+            Start Date *{isUpcoming && <span className="ml-1 text-blue-600 font-normal">(upcoming)</span>}
           </label>
-          <input
-            type="date"
-            value={form.start_date}
-            onChange={(e) => set("start_date", e.target.value)}
-            required
-            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm text-gray-900"
-          />
+          <input type="date" value={form.start_date} onChange={(e) => set("start_date", e.target.value)} required
+            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm text-gray-900" />
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Language</label>
-          <select
-            value={form.language}
-            onChange={(e) => set("language", e.target.value)}
-            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm text-gray-900"
-          >
+          <select value={form.language} onChange={(e) => set("language", e.target.value)}
+            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm text-gray-900">
             <option value="pt">Português</option>
             <option value="en">English</option>
           </select>
         </div>
         <div className="col-span-2 sm:col-span-4">
           <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
-          <input
-            type="text"
-            value={form.notes}
-            onChange={(e) => set("notes", e.target.value)}
+          <input type="text" value={form.notes} onChange={(e) => set("notes", e.target.value)}
             className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm text-gray-900"
-            placeholder="Optional notes..."
-          />
+            placeholder="Optional notes..." />
         </div>
       </div>
 
       <div className="mt-4 flex justify-end">
-        <button
-          type="submit"
-          disabled={saving}
-          className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50"
-        >
-          {saving ? "Adding..." : isFuture ? "Add Future Tenant" : "Add Tenant"}
+        <button type="submit" disabled={saving}
+          className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50">
+          {saving ? "Adding..." : isUpcoming ? "Add Upcoming Tenant" : "Add Tenant"}
         </button>
       </div>
     </form>
   );
 }
 
-// --- Deactivate Modal ---
-function DeactivateModal({
+// --- Assign Spot Modal (for existing tenants with no spot) ---
+function AssignSpotModal({
   tenant,
-  remoteCount,
-  saving,
-  onConfirm,
+  allSpots,
+  onSuccess,
+  onError,
   onCancel,
 }: {
   tenant: Tenant;
-  remoteCount: number;
-  saving: boolean;
-  onConfirm: () => void;
+  allSpots: Spot[];
+  onSuccess: () => void;
+  onError: (msg: string) => void;
   onCancel: () => void;
+}) {
+  const today = new Date().toISOString().split("T")[0];
+  const [spotId, setSpotId] = useState("");
+  const [startDate, setStartDate] = useState(tenant.start_date >= today ? tenant.start_date : today);
+  const [departingEndDate, setDepartingEndDate] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const selectedSpot = allSpots.find((s) => s.id === spotId) ?? null;
+  const isOccupied = selectedSpot?.occupied ?? false;
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!spotId) { onError("Select a spot"); return; }
+    if (isOccupied && !departingEndDate) { onError("Enter the departing tenant's last day"); return; }
+    if (isOccupied && departingEndDate >= startDate) {
+      onError(`Departing tenant's last day must be before ${startDate}`);
+      return;
+    }
+
+    setSaving(true);
+    try {
+      // 1. Set end_date on the departing tenant's open assignment (patch by spot_id)
+      if (isOccupied && departingEndDate) {
+        const patchRes = await fetch("/api/spot-assignments", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ spot_id: spotId, end_date: departingEndDate }),
+        });
+        if (!patchRes.ok) {
+          const data = await patchRes.json().catch(() => ({}));
+          onError(data.error || "Failed to update departing tenant's end date");
+          return;
+        }
+      }
+
+      // 2. Create the new assignment
+      const res = await fetch("/api/spot-assignments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenant_id: tenant.id, spot_id: spotId, start_date: startDate }),
+      });
+
+      if (res.ok) {
+        onSuccess();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        onError(data.error || "Failed to assign spot");
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+        <h2 className="text-lg font-bold text-gray-900 mb-1">Assign Spot</h2>
+        <p className="text-sm text-gray-500 mb-4">Assigning a spot to <strong>{tenant.name}</strong></p>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Spot *</label>
+            <select value={spotId} onChange={(e) => { setSpotId(e.target.value); setDepartingEndDate(""); }}
+              className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm text-gray-900" required>
+              <option value="">— select a spot —</option>
+              {allSpots.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {spotLabel(s)}{s.occupied ? ` — ${s.tenant_name} (occupied)` : " — vacant"}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Start Date *</label>
+            <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} required
+              className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm text-gray-900" />
+          </div>
+
+          {isOccupied && (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded">
+              <p className="text-sm text-amber-800 mb-2">
+                Spot {spotLabel(selectedSpot!)} is currently occupied by{" "}
+                <strong>{selectedSpot!.tenant_name}</strong>. When is their last day?
+              </p>
+              <input
+                type="date"
+                value={departingEndDate}
+                max={startDate ? new Date(new Date(startDate).getTime() - 86400000).toISOString().split("T")[0] : undefined}
+                onChange={(e) => setDepartingEndDate(e.target.value)}
+                required
+                className="w-full px-2 py-1 border border-amber-300 rounded text-sm text-gray-900 bg-white"
+              />
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3 pt-2">
+            <button type="button" onClick={onCancel}
+              className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Cancel</button>
+            <button type="submit" disabled={saving}
+              className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50">
+              {saving ? "Assigning..." : "Assign Spot"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// --- Deactivate Modal ---
+function DeactivateModal({
+  tenant, remoteCount, saving, onConfirm, onCancel,
+}: {
+  tenant: Tenant; remoteCount: number; saving: boolean; onConfirm: () => void; onCancel: () => void;
 }) {
   const [remotesReturned, setRemotesReturned] = useState(false);
   const [depositRefunded, setDepositRefunded] = useState(false);
-
   const hasRemotes = remoteCount > 0;
   const hasDeposit = tenant.torrinha_remotes?.some((r) => r.deposit_paid && !r.returned_date);
 
@@ -644,12 +728,10 @@ function DeactivateModal({
           {tenant.torrinha_spots.length > 0 && (
             <> (Spot{tenant.torrinha_spots.length > 1 ? "s" : ""} {spotLabels(tenant)})</>
           )}?
-          This will close their spot assignment(s) and free the spot{tenant.torrinha_spots.length > 1 ? "s" : ""} for new tenants.
+          This will close their spot assignment(s).
         </p>
-
         <div className="space-y-3 mb-6">
           <h3 className="text-sm font-medium text-gray-700">Checklist before deactivation:</h3>
-
           {hasRemotes ? (
             <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
               <input type="checkbox" checked={remotesReturned} onChange={(e) => setRemotesReturned(e.target.checked)} />
@@ -660,7 +742,6 @@ function DeactivateModal({
               <span className="text-green-500">&#10003;</span> No remotes issued
             </p>
           )}
-
           {hasDeposit ? (
             <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
               <input type="checkbox" checked={depositRefunded} onChange={(e) => setDepositRefunded(e.target.checked)} />
@@ -672,16 +753,11 @@ function DeactivateModal({
             </p>
           )}
         </div>
-
         <div className="flex justify-end gap-3">
-          <button onClick={onCancel} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
+          <button onClick={onCancel} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Cancel</button>
+          <button onClick={onConfirm}
             disabled={saving || (hasRemotes && !remotesReturned) || (hasDeposit && !depositRefunded)}
-            className="px-4 py-2 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 disabled:opacity-50"
-          >
+            className="px-4 py-2 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 disabled:opacity-50">
             {saving ? "Deactivating..." : "Deactivate"}
           </button>
         </div>
@@ -693,40 +769,17 @@ function DeactivateModal({
 // --- Portal link copy-to-clipboard cell ---
 function PortalLinkCell({ token }: { token: string | null }) {
   const [copied, setCopied] = useState(false);
-
   if (!token) return <span className="text-xs text-gray-300">—</span>;
-
-  const url = typeof window !== "undefined"
-    ? `${window.location.origin}/tenant/${token}`
-    : `/tenant/${token}`;
+  const url = typeof window !== "undefined" ? `${window.location.origin}/tenant/${token}` : `/tenant/${token}`;
   const shortToken = `${token.slice(0, 6)}…${token.slice(-4)}`;
-
   async function handleCopy() {
-    try {
-      await navigator.clipboard.writeText(url);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      // clipboard not available on non-HTTPS
-    }
+    try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* non-HTTPS */ }
   }
-
   return (
     <div className="flex items-center gap-1">
-      <a
-        href={`/tenant/${token}`}
-        target="_blank"
-        rel="noreferrer"
-        className="text-xs text-blue-600 hover:underline font-mono"
-        title={url}
-      >
-        {shortToken}
-      </a>
-      <button
-        onClick={handleCopy}
-        className="text-xs text-gray-400 hover:text-gray-700 px-1 rounded"
-        title="Copy portal URL"
-      >
+      <a href={`/tenant/${token}`} target="_blank" rel="noreferrer"
+        className="text-xs text-blue-600 hover:underline font-mono" title={url}>{shortToken}</a>
+      <button onClick={handleCopy} className="text-xs text-gray-400 hover:text-gray-700 px-1 rounded" title="Copy portal URL">
         {copied ? "✓" : "📋"}
       </button>
     </div>

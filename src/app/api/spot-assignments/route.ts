@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
       .from("torrinha_tenants")
       .update({ status: "active" })
       .eq("id", tenant_id)
-      .eq("status", "future");
+      .eq("status", "upcoming");
 
     await syncSpotCache(supabase, spot_id);
   }
@@ -98,15 +98,30 @@ export async function POST(request: NextRequest) {
 }
 
 // PATCH /api/spot-assignments — update (mainly to set end_date)
+// Accepts either { id } to patch a specific row, or { spot_id } to patch the open assignment on that spot
 export async function PATCH(request: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await request.json();
-  const { id, end_date, notes } = body;
+  const { id, spot_id, end_date, notes } = body;
 
-  if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 });
+  // Resolve id from spot_id if not provided directly
+  let resolvedId = id;
+  if (!resolvedId && spot_id) {
+    const { data: open } = await supabase
+      .from("torrinha_spot_assignments")
+      .select("id")
+      .eq("spot_id", spot_id)
+      .is("end_date", null)
+      .order("start_date", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    resolvedId = open?.id;
+  }
+
+  if (!resolvedId) return NextResponse.json({ error: "id or spot_id is required" }, { status: 400 });
 
   const updates: Record<string, unknown> = {};
   if (end_date !== undefined) updates.end_date = end_date || null;
@@ -115,7 +130,7 @@ export async function PATCH(request: NextRequest) {
   const { data: assignment, error } = await supabase
     .from("torrinha_spot_assignments")
     .update(updates)
-    .eq("id", id)
+    .eq("id", resolvedId)
     .select()
     .single();
 
