@@ -3,8 +3,12 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Tenant, Spot } from "./types";
 import TenantDetailPanel from "./components/tenant-detail-panel";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { tenantStatusVariant } from "@/lib/status-colors";
 
-const INPUT = "w-full px-2 py-1.5 border border-gray-200 rounded-md text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500";
+const INPUT =
+  "w-full px-2 py-1.5 border border-t-border rounded-[var(--t-radius-md)] text-sm text-t-text bg-t-surface focus:outline-none focus:ring-1 focus:ring-t-accent";
 
 function sLabel(s: { number: number; label: string | null }): string {
   return s.label || String(s.number);
@@ -24,14 +28,6 @@ function sLabels(t: Tenant): string {
     return `→ ${s ? sLabel(s) : "?"} from ${first.start_date}`;
   }
   return "—";
-}
-
-function StatusBadge({ status }: { status: Tenant["status"] }) {
-  if (status === "active")
-    return <span className="px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">Active</span>;
-  if (status === "upcoming")
-    return <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">Upcoming</span>;
-  return <span className="px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500">Inactive</span>;
 }
 
 export default function TenantsClient() {
@@ -57,17 +53,17 @@ export default function TenantsClient() {
   const inactiveTenants = tenants.filter((t) => t.status === "inactive");
 
   if (loading) {
-    return <div className="text-center py-12 text-gray-500">Loading tenants…</div>;
+    return <div className="text-center py-12 text-t-text-muted">Loading tenants…</div>;
   }
 
   const tableHead = (
     <tr>
-      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Status</th>
-      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Spot</th>
-      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Name</th>
-      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Rent</th>
-      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Start</th>
-      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Lang</th>
+      <th className="px-4 py-3 text-left text-[10px] font-semibold text-t-text-muted uppercase tracking-widest">Status</th>
+      <th className="px-4 py-3 text-left text-[10px] font-semibold text-t-text-muted uppercase tracking-widest">Spot</th>
+      <th className="px-4 py-3 text-left text-[10px] font-semibold text-t-text-muted uppercase tracking-widest">Name</th>
+      <th className="px-4 py-3 text-left text-[10px] font-semibold text-t-text-muted uppercase tracking-widest">Rent</th>
+      <th className="px-4 py-3 text-left text-[10px] font-semibold text-t-text-muted uppercase tracking-widest">Start</th>
+      <th className="px-4 py-3 text-left text-[10px] font-semibold text-t-text-muted uppercase tracking-widest">Lang</th>
     </tr>
   );
 
@@ -78,15 +74,19 @@ export default function TenantsClient() {
         key={t.id}
         onClick={() => { setSelectedTenantId(t.id); setShowAddPanel(false); }}
         className={`cursor-pointer transition-colors ${
-          isSelected ? "bg-blue-50" : "hover:bg-gray-50"
+          isSelected ? "bg-t-accent-light" : "hover:bg-t-bg"
         } ${t.status === "inactive" ? "opacity-50" : ""}`}
       >
-        <td className="px-4 py-3 text-sm"><StatusBadge status={t.status} /></td>
-        <td className="px-4 py-3 text-sm font-medium text-gray-900">{sLabels(t)}</td>
-        <td className="px-4 py-3 text-sm text-gray-900">{t.name}</td>
-        <td className="px-4 py-3 text-sm text-gray-500">€{t.rent_eur}</td>
-        <td className="px-4 py-3 text-sm text-gray-500 tabular-nums">{t.start_date}</td>
-        <td className="px-4 py-3 text-sm text-gray-400 uppercase">{t.language}</td>
+        <td className="px-4 py-3 text-sm">
+          <Badge variant={tenantStatusVariant(t.status)}>
+            {t.status.charAt(0).toUpperCase() + t.status.slice(1)}
+          </Badge>
+        </td>
+        <td className="px-4 py-3 text-sm font-medium text-t-text">{sLabels(t)}</td>
+        <td className="px-4 py-3 text-sm text-t-text">{t.name}</td>
+        <td className="px-4 py-3 text-sm text-t-text-muted">€{t.rent_eur}</td>
+        <td className="px-4 py-3 text-sm text-t-text-muted tabular-nums">{t.start_date}</td>
+        <td className="px-4 py-3 text-sm text-t-text-muted uppercase">{t.language}</td>
       </tr>
     );
   }
@@ -94,36 +94,33 @@ export default function TenantsClient() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">
+        <h1 className="text-2xl font-bold tracking-tight text-t-text">
           Tenants{" "}
-          <span className="text-base font-normal text-gray-400">
+          <span className="text-base font-normal text-t-text-muted">
             {activeTenants.length} active
             {upcomingTenants.length > 0 && ` · ${upcomingTenants.length} upcoming`}
           </span>
         </h1>
-        <button
-          onClick={() => { setShowAddPanel(true); setSelectedTenantId(null); }}
-          className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700"
-        >
+        <Button onClick={() => { setShowAddPanel(true); setSelectedTenantId(null); }}>
           Add Tenant
-        </button>
+        </Button>
       </div>
 
       {error && (
-        <div className="mb-4 p-3 bg-red-50 text-red-700 rounded text-sm flex justify-between">
+        <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-[var(--t-radius-md)] text-sm flex justify-between">
           {error}
           <button onClick={() => setError("")} className="text-red-400 hover:text-red-600">✕</button>
         </div>
       )}
 
       {/* Active + Upcoming table */}
-      <div className="bg-white rounded-lg shadow overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">{tableHead}</thead>
-          <tbody className="divide-y divide-gray-200">
+      <div className="bg-t-surface border border-t-border rounded-[var(--t-radius-lg)] overflow-x-auto">
+        <table className="min-w-full divide-y divide-t-border">
+          <thead className="bg-t-bg">{tableHead}</thead>
+          <tbody className="divide-y divide-t-border">
             {activeTenants.length === 0 && upcomingTenants.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-sm text-gray-500">
+                <td colSpan={6} className="px-4 py-8 text-center text-sm text-t-text-muted">
                   No tenants. Click &quot;Add Tenant&quot; to get started.
                 </td>
               </tr>
@@ -137,11 +134,11 @@ export default function TenantsClient() {
       {/* Inactive */}
       {inactiveTenants.length > 0 && (
         <div className="mt-8">
-          <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">Inactive</h2>
-          <div className="bg-white rounded-lg shadow overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">{tableHead}</thead>
-              <tbody className="divide-y divide-gray-200">
+          <h2 className="text-[10px] font-semibold text-t-text-muted uppercase tracking-widest mb-3">Inactive</h2>
+          <div className="bg-t-surface border border-t-border rounded-[var(--t-radius-lg)] overflow-x-auto">
+            <table className="min-w-full divide-y divide-t-border">
+              <thead className="bg-t-bg">{tableHead}</thead>
+              <tbody className="divide-y divide-t-border">
                 {inactiveTenants.map(renderRow)}
               </tbody>
             </table>
@@ -255,31 +252,31 @@ function AddTenantPanel({
     <>
       <div className="fixed inset-0 bg-black/30 z-40" onClick={onClose} />
       <div
-        className={`fixed inset-y-0 right-0 w-full sm:max-w-lg bg-white shadow-2xl z-50 overflow-y-auto
+        className={`fixed inset-y-0 right-0 w-full sm:max-w-lg bg-t-surface border-l border-t-border z-50 overflow-y-auto
           transition-transform duration-200 ${visible ? "translate-x-0" : "translate-x-full"}`}
       >
         {/* Top bar */}
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-5 py-3 flex items-center justify-between z-10">
-          <button onClick={onClose} className="text-sm text-gray-500 hover:text-gray-800">← Back</button>
-          <span className="text-sm font-medium text-gray-500">New Tenant</span>
+        <div className="sticky top-0 bg-t-surface border-b border-t-border px-5 py-3 flex items-center justify-between z-10">
+          <button onClick={onClose} className="text-sm text-t-text-muted hover:text-t-text transition-colors">← Back</button>
+          <span className="text-sm font-medium text-t-text-muted">New Tenant</span>
         </div>
 
         <form onSubmit={handleSubmit} className="px-5 py-5 space-y-7">
           {/* Header */}
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-2xl font-bold text-gray-900">New Tenant</h2>
+              <h2 className="text-2xl font-bold tracking-tight text-t-text">New Tenant</h2>
               {isUpcoming && (
-                <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">Upcoming</span>
+                <Badge variant="info">Upcoming</Badge>
               )}
             </div>
-            <p className="text-sm text-gray-400 mt-0.5">Starts {form.start_date}</p>
+            <p className="text-sm text-t-text-muted mt-0.5">Starts {form.start_date}</p>
           </div>
 
           {/* Spot selector */}
           <div>
-            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 pb-2 border-b border-gray-100">
-              Spot <span className="font-normal text-gray-300 normal-case">(optional)</span>
+            <h3 className="text-[10px] font-semibold text-t-text-muted uppercase tracking-widest mb-3 pb-2 border-b border-t-border">
+              Spot <span className="font-normal normal-case opacity-60">(optional)</span>
             </h3>
             <div className="flex flex-wrap gap-2">
               {allSpots.map((s) => {
@@ -290,12 +287,12 @@ function AddTenantPanel({
                     type="button"
                     onClick={() => toggleSpot(s.id)}
                     title={s.occupied ? `Currently: ${s.tenant_name ?? "occupied"}` : "Vacant"}
-                    className={`px-3 py-1.5 rounded text-sm font-medium border transition-colors ${
+                    className={`px-3 py-1.5 rounded-[var(--t-radius-sm)] text-sm font-medium border transition-colors ${
                       selected
-                        ? "bg-blue-600 text-white border-blue-600"
+                        ? "bg-t-accent text-white border-t-accent"
                         : s.occupied
                         ? "bg-amber-50 text-amber-700 border-amber-300 hover:border-amber-500"
-                        : "bg-white text-gray-700 border-gray-300 hover:border-blue-400"
+                        : "bg-t-surface text-t-text border-t-border hover:border-t-border-strong"
                     }`}
                   >
                     {sLabel(s)}
@@ -308,7 +305,7 @@ function AddTenantPanel({
             </div>
 
             {selectedOccupiedSpots.map((s) => (
-              <div key={s.id} className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded mt-2">
+              <div key={s.id} className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded-[var(--t-radius-md)] mt-2">
                 <div className="flex-1 text-sm text-amber-800">
                   <span className="font-medium">Spot {sLabel(s)}</span> occupied by{" "}
                   <span className="font-medium">{s.tenant_name}</span>. Last day?
@@ -323,7 +320,7 @@ function AddTenantPanel({
                   }
                   onChange={(e) => setDepartingEndDates((d) => ({ ...d, [s.id]: e.target.value }))}
                   required
-                  className="px-2 py-1 border border-amber-300 rounded text-sm bg-white"
+                  className="px-2 py-1 border border-amber-300 rounded-[var(--t-radius-sm)] text-sm bg-white"
                 />
               </div>
             ))}
@@ -331,7 +328,7 @@ function AddTenantPanel({
 
           {/* Details */}
           <div>
-            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 pb-2 border-b border-gray-100">
+            <h3 className="text-[10px] font-semibold text-t-text-muted uppercase tracking-widest mb-3 pb-2 border-b border-t-border">
               Details
             </h3>
             <div className="space-y-3">
@@ -346,13 +343,13 @@ function AddTenantPanel({
               </AddFieldRow>
               <AddFieldRow label="Rent *">
                 <div className="flex items-center gap-1">
-                  <span className="text-gray-400 text-sm">€</span>
+                  <span className="text-t-text-muted text-sm">€</span>
                   <input
                     type="number" step="0.01" min="0"
                     value={form.rent_eur}
                     onChange={(e) => setField("rent_eur", e.target.value)}
                     required
-                    className="w-28 px-2 py-1.5 border border-gray-200 rounded-md text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="w-28 px-2 py-1.5 border border-t-border rounded-[var(--t-radius-md)] text-sm text-t-text bg-t-surface focus:outline-none focus:ring-1 focus:ring-t-accent"
                   />
                 </div>
               </AddFieldRow>
@@ -360,7 +357,7 @@ function AddTenantPanel({
                 <select
                   value={form.payment_due_day}
                   onChange={(e) => setField("payment_due_day", e.target.value)}
-                  className="w-24 px-2 py-1.5 border border-gray-200 rounded-md text-sm text-gray-900"
+                  className="w-24 px-2 py-1.5 border border-t-border rounded-[var(--t-radius-md)] text-sm text-t-text bg-t-surface"
                 >
                   {Array.from({ length: 28 }, (_, i) => i + 1).map((d) => (
                     <option key={d} value={d}>{d}</option>
@@ -373,14 +370,14 @@ function AddTenantPanel({
                   value={form.start_date}
                   onChange={(e) => setField("start_date", e.target.value)}
                   required
-                  className="w-40 px-2 py-1.5 border border-gray-200 rounded-md text-sm text-gray-900"
+                  className="w-40 px-2 py-1.5 border border-t-border rounded-[var(--t-radius-md)] text-sm text-t-text bg-t-surface"
                 />
               </AddFieldRow>
               <AddFieldRow label="Language">
                 <select
                   value={form.language}
                   onChange={(e) => setField("language", e.target.value)}
-                  className="w-32 px-2 py-1.5 border border-gray-200 rounded-md text-sm text-gray-900"
+                  className="w-32 px-2 py-1.5 border border-t-border rounded-[var(--t-radius-md)] text-sm text-t-text bg-t-surface"
                 >
                   <option value="pt">Português</option>
                   <option value="en">English</option>
@@ -398,13 +395,9 @@ function AddTenantPanel({
           </div>
 
           <div className="pb-4">
-            <button
-              type="submit"
-              disabled={saving}
-              className="w-full px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:opacity-50"
-            >
+            <Button type="submit" disabled={saving} size="lg" className="w-full">
               {saving ? "Creating…" : isUpcoming ? "Create Upcoming Tenant" : "Create Tenant"}
-            </button>
+            </Button>
           </div>
         </form>
       </div>
@@ -415,7 +408,7 @@ function AddTenantPanel({
 function AddFieldRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex items-start gap-3">
-      <label className="w-24 shrink-0 text-sm text-gray-500 pt-1.5">{label}</label>
+      <label className="w-24 shrink-0 text-sm text-t-text-muted pt-1.5">{label}</label>
       <div className="flex-1 min-w-0">{children}</div>
     </div>
   );

@@ -5,8 +5,13 @@ import type { Tenant, Spot } from "../types";
 import SpotAssignmentSection from "./spot-assignment-section";
 import ContactsSection from "./contacts-section";
 import PaymentHistorySection from "./payment-history-section";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { SectionLabel } from "@/components/ui/section-label";
+import { tenantStatusVariant } from "@/lib/status-colors";
 
-const INPUT = "w-full px-2 py-1.5 border border-gray-200 rounded-md text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500";
+const INPUT =
+  "w-full px-2 py-1.5 border border-t-border rounded-[var(--t-radius-md)] text-sm text-t-text focus:outline-none focus:ring-1 focus:ring-t-accent bg-t-surface";
 
 function sLabels(t: Tenant): string {
   if (t.torrinha_spots?.length > 0) {
@@ -27,7 +32,9 @@ function sLabels(t: Tenant): string {
 function tenure(startDate: string): string {
   const start = new Date(startDate);
   const now = new Date();
-  const months = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
+  const months =
+    (now.getFullYear() - start.getFullYear()) * 12 +
+    (now.getMonth() - start.getMonth());
   if (months < 1) return "just started";
   if (months < 12) return `${months}mo`;
   return `${Math.floor(months / 12)}y ${months % 12}mo`;
@@ -133,8 +140,10 @@ export default function TenantDetailPanel({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ tenant_id: tenant.id, mark_remotes_returned: true }),
     });
-    if (res.ok) { onRefresh(); onClose(); }
-    else {
+    if (res.ok) {
+      onRefresh();
+      onClose();
+    } else {
       const data = await res.json().catch(() => ({}));
       setError(data.error || "Failed to deactivate");
       setDeactivating(false);
@@ -156,26 +165,24 @@ export default function TenantDetailPanel({
 
   return (
     <>
-      {/* Overlay */}
       <div className="fixed inset-0 bg-black/30 z-40" onClick={onClose} />
 
-      {/* Slide-over panel */}
       <div
-        className={`fixed inset-y-0 right-0 w-full sm:max-w-lg bg-white shadow-2xl z-50 overflow-y-auto
+        className={`fixed inset-y-0 right-0 w-full sm:max-w-lg bg-t-surface border-l border-t-border z-50 overflow-y-auto
           transition-transform duration-200 ${visible ? "translate-x-0" : "translate-x-full"}`}
       >
         {/* Sticky top bar */}
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-5 py-3 flex items-center justify-between z-10">
+        <div className="sticky top-0 bg-t-surface border-b border-t-border px-5 py-3 flex items-center justify-between z-10">
           <button
             onClick={onClose}
-            className="text-sm text-gray-500 hover:text-gray-800 flex items-center gap-1"
+            className="text-sm text-t-text-muted hover:text-t-text transition-colors"
           >
             ← Back
           </button>
           {tenant.status !== "inactive" && !showDeactivate && (
             <button
               onClick={() => setShowDeactivate(true)}
-              className="text-sm text-red-500 hover:text-red-700"
+              className="text-sm text-red-500 hover:text-red-700 transition-colors"
             >
               Deactivate
             </button>
@@ -186,12 +193,14 @@ export default function TenantDetailPanel({
           {/* Tenant identity */}
           <div>
             <div className="flex items-start justify-between gap-2">
-              <h2 className="text-2xl font-bold text-gray-900 leading-tight break-words">
+              <h2 className="text-2xl font-bold tracking-tight text-t-text leading-tight break-words">
                 {draft.name ?? tenant.name}
               </h2>
-              <StatusBadge status={tenant.status} />
+              <Badge variant={tenantStatusVariant(tenant.status)} className="shrink-0 mt-1">
+                {tenant.status.charAt(0).toUpperCase() + tenant.status.slice(1)}
+              </Badge>
             </div>
-            <p className="text-sm text-gray-400 mt-1">
+            <p className="text-sm text-t-text-muted mt-1">
               {sLabels(tenant)}
               {tenant.start_date && (
                 <span> · {tenure(tenant.start_date)} since {tenant.start_date}</span>
@@ -200,7 +209,7 @@ export default function TenantDetailPanel({
           </div>
 
           {error && (
-            <div className="p-3 bg-red-50 text-red-700 text-sm rounded flex items-start justify-between gap-2">
+            <div className="p-3 bg-red-50 text-red-700 text-sm rounded-[var(--t-radius-md)] flex items-start justify-between gap-2">
               <span>{error}</span>
               <button onClick={() => setError("")} className="text-red-400 hover:text-red-600 shrink-0">✕</button>
             </div>
@@ -220,12 +229,12 @@ export default function TenantDetailPanel({
               </FieldRow>
               <FieldRow label="Rent">
                 <div className="flex items-center gap-1">
-                  <span className="text-gray-400 text-sm">€</span>
+                  <span className="text-t-text-muted text-sm">€</span>
                   <input
                     type="number" step="0.01" min="0"
                     value={val("rent_eur")}
                     onChange={(e) => setField("rent_eur", e.target.value)}
-                    className="w-28 px-2 py-1.5 border border-gray-200 rounded-md text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="w-28 px-2 py-1.5 border border-t-border rounded-[var(--t-radius-md)] text-sm text-t-text bg-t-surface focus:outline-none focus:ring-1 focus:ring-t-accent"
                   />
                 </div>
               </FieldRow>
@@ -233,7 +242,7 @@ export default function TenantDetailPanel({
                 <select
                   value={val("payment_due_day")}
                   onChange={(e) => setField("payment_due_day", e.target.value)}
-                  className="w-24 px-2 py-1.5 border border-gray-200 rounded-md text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="w-24 px-2 py-1.5 border border-t-border rounded-[var(--t-radius-md)] text-sm text-t-text bg-t-surface focus:outline-none focus:ring-1 focus:ring-t-accent"
                 >
                   {Array.from({ length: 28 }, (_, i) => i + 1).map((d) => (
                     <option key={d} value={d}>{d}</option>
@@ -244,14 +253,14 @@ export default function TenantDetailPanel({
                 <input
                   type="date" value={val("start_date")}
                   onChange={(e) => setField("start_date", e.target.value)}
-                  className="w-40 px-2 py-1.5 border border-gray-200 rounded-md text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="w-40 px-2 py-1.5 border border-t-border rounded-[var(--t-radius-md)] text-sm text-t-text bg-t-surface focus:outline-none focus:ring-1 focus:ring-t-accent"
                 />
               </FieldRow>
               <FieldRow label="Language">
                 <select
                   value={val("language")}
                   onChange={(e) => setField("language", e.target.value)}
-                  className="w-32 px-2 py-1.5 border border-gray-200 rounded-md text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="w-32 px-2 py-1.5 border border-t-border rounded-[var(--t-radius-md)] text-sm text-t-text bg-t-surface focus:outline-none focus:ring-1 focus:ring-t-accent"
                 >
                   <option value="pt">Português</option>
                   <option value="en">English</option>
@@ -267,13 +276,12 @@ export default function TenantDetailPanel({
               </FieldRow>
             </div>
             <div className="mt-4 flex items-center gap-3">
-              <button
+              <Button
                 onClick={handleSave}
                 disabled={saving || !isDirty}
-                className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-40"
               >
                 {saving ? "Saving…" : "Save changes"}
-              </button>
+              </Button>
               {savedMsg && <span className="text-sm text-green-600">{savedMsg}</span>}
             </div>
           </PanelSection>
@@ -300,14 +308,14 @@ export default function TenantDetailPanel({
           {/* ─── Remotes ─── */}
           <PanelSection title="Remotes">
             {activeRemoteCount > 0 ? (
-              <p className="text-sm text-gray-700">
+              <p className="text-sm text-t-text">
                 <span className="font-medium">{activeRemoteCount}</span> remote{activeRemoteCount > 1 ? "s" : ""} out
-                {hasDeposit && <span className="text-gray-400 ml-2">· deposit paid</span>}
+                {hasDeposit && <span className="text-t-text-muted ml-2">· deposit paid</span>}
               </p>
             ) : (
-              <p className="text-sm text-gray-400">No active remotes.</p>
+              <p className="text-sm text-t-text-muted">No active remotes.</p>
             )}
-            <a href="/admin/remotes" className="mt-1 block text-xs text-blue-600 hover:underline">
+            <a href="/admin/remotes" className="mt-1 block text-xs text-t-accent hover:text-t-accent-hover hover:underline">
               Manage remotes →
             </a>
           </PanelSection>
@@ -317,7 +325,7 @@ export default function TenantDetailPanel({
             {portalUrl ? (
               <PortalRow url={portalUrl} token={tenant.access_token!} />
             ) : (
-              <p className="text-sm text-gray-400">No portal link.</p>
+              <p className="text-sm text-t-text-muted">No portal link.</p>
             )}
           </PanelSection>
 
@@ -328,7 +336,7 @@ export default function TenantDetailPanel({
 
           {/* ─── Deactivate confirmation ─── */}
           {showDeactivate && (
-            <div className="border border-red-200 rounded-lg p-4 bg-red-50 space-y-3">
+            <div className="border border-red-200 rounded-[var(--t-radius-lg)] p-4 bg-red-50 space-y-3">
               <h3 className="text-sm font-semibold text-red-800">
                 Deactivate {tenant.name}?
               </h3>
@@ -362,24 +370,23 @@ export default function TenantDetailPanel({
                 )}
               </div>
               <div className="flex gap-3">
-                <button
+                <Button
+                  variant="danger"
                   onClick={handleDeactivate}
                   disabled={deactivating || !canDeactivate}
-                  className="px-4 py-2 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 disabled:opacity-40"
                 >
                   {deactivating ? "Deactivating…" : "Confirm"}
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="ghost"
                   onClick={() => setShowDeactivate(false)}
-                  className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
                 >
                   Cancel
-                </button>
+                </Button>
               </div>
             </div>
           )}
 
-          {/* Bottom padding */}
           <div className="h-8" />
         </div>
       </div>
@@ -389,20 +396,10 @@ export default function TenantDetailPanel({
 
 // ─── Sub-components ───
 
-function StatusBadge({ status }: { status: Tenant["status"] }) {
-  if (status === "active")
-    return <span className="shrink-0 px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">Active</span>;
-  if (status === "upcoming")
-    return <span className="shrink-0 px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">Upcoming</span>;
-  return <span className="shrink-0 px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500">Inactive</span>;
-}
-
 function PanelSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 pb-2 border-b border-gray-100">
-        {title}
-      </h3>
+      <SectionLabel className="mb-3 pb-2 border-b border-t-border">{title}</SectionLabel>
       {children}
     </div>
   );
@@ -411,7 +408,7 @@ function PanelSection({ title, children }: { title: string; children: React.Reac
 function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex items-start gap-3">
-      <label className="w-24 shrink-0 text-sm text-gray-500 pt-1.5">{label}</label>
+      <label className="w-24 shrink-0 text-sm text-t-text-muted pt-1.5">{label}</label>
       <div className="flex-1 min-w-0">{children}</div>
     </div>
   );
@@ -424,7 +421,9 @@ function PortalRow({ url, token }: { url: string; token: string }) {
       await navigator.clipboard.writeText(url);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
-    } catch { /* non-HTTPS fallback */ }
+    } catch {
+      /* non-HTTPS fallback */
+    }
   }
   const short = `${token.slice(0, 6)}…${token.slice(-4)}`;
   return (
@@ -433,17 +432,14 @@ function PortalRow({ url, token }: { url: string; token: string }) {
         href={url}
         target="_blank"
         rel="noreferrer"
-        className="text-sm text-blue-600 hover:underline font-mono"
+        className="text-sm text-t-accent hover:text-t-accent-hover hover:underline font-mono"
         title={url}
       >
         {short}
       </a>
-      <button
-        onClick={handleCopy}
-        className="px-2 py-1 text-xs text-gray-500 border border-gray-200 rounded hover:bg-gray-50"
-      >
+      <Button variant="outline" size="sm" onClick={handleCopy}>
         {copied ? "Copied!" : "Copy link"}
-      </button>
+      </Button>
     </div>
   );
 }

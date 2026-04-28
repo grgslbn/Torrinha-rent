@@ -85,7 +85,7 @@ export default function ContactsSection({
                 type="checkbox"
                 checked={c.receives_emails}
                 onChange={() => handleToggleEmails(c)}
-                className="accent-blue-600"
+                className="accent-[var(--t-accent)]"
               />
               CC
             </label>
@@ -146,7 +146,7 @@ export default function ContactsSection({
               type="checkbox"
               checked={addForm.receives_emails}
               onChange={(e) => setAdd("receives_emails", e.target.checked)}
-              className="accent-blue-600"
+              className="accent-[var(--t-accent)]"
             />
             CC on tenant emails
           </label>
@@ -154,7 +154,7 @@ export default function ContactsSection({
             <button
               type="submit"
               disabled={saving}
-              className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50"
+              className="px-3 py-1.5 bg-t-accent text-white text-sm rounded-[var(--t-radius-sm)] hover:bg-t-accent-hover disabled:opacity-50 transition-colors"
             >
               {saving ? "Adding…" : "Add contact"}
             </button>
@@ -170,7 +170,7 @@ export default function ContactsSection({
       ) : (
         <button
           onClick={() => setShowAdd(true)}
-          className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
+          className="text-sm text-t-accent hover:text-t-accent-hover hover:underline"
         >
           + Add contact
         </button>
