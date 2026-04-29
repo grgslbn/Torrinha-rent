@@ -2,17 +2,22 @@
 
 <!-- STATUS:START -->
 ## Live status (auto-updated on every push)
-**Last updated:** 2026-04-28 18:18 UTC
+**Last updated:** 2026-04-29 05:53 UTC
 
 | Metric | Value |
 |---|---|
 | Active tenants | 13 |
-| Current month paid | 10 |
-| Current month pending | 0 |
-| Current month overdue | 3 |
+| Upcoming tenants | 2 |
+| Inactive tenants | 0 |
+| Total spots | 17 |
+| 2026-04 paid | 10 |
+| 2026-04 pending | 0 |
+| 2026-04 overdue | 3 |
 | Waitlist (waiting) | 1 |
 | Unmatched transactions | 0 |
 | Inbox pending | 5 |
+| Email log entries | 0 |
+| Tenant context entries | 0 |
 | Last payment received | 2026-04-16 |
 <!-- STATUS:END -->
 
@@ -21,72 +26,112 @@
 ## Infrastructure
 
 | Component | URL / Service |
-|-----------|---------------|
+|---|---|
 | Frontend | [torrinha149.com](https://torrinha149.com) (Vercel) |
 | Backend | [Railway](https://torrinha-rent-production.up.railway.app) |
-| Database | Supabase (RandomPlayground) |
+| Database | Supabase (project `bretjrquztvkylilxnbg`) |
 | Email (outbound) | Resend — parking@mail.torrinha149.com |
-| Email (inbound) | Postmark / Resend |
-| Domain | torrinha149.com (Vercel DNS) |
+| Email (inbound) | Postmark → Railway webhook |
+| Domain | torrinha149.com (Vercel DNS), mail.torrinha149.com (Postmark) |
+| AI | Claude API (`claude-sonnet-4-20250514`) — payment matching, email agent, email personalisation |
+
+---
+
+## Database Tables
+
+| Table | Purpose | Rows |
+|---|---|---|
+| torrinha_tenants | Tenant records (active, upcoming, inactive) | 15 |
+| torrinha_spots | Parking spots (17 total) | 17 |
+| torrinha_spot_assignments | Spot ↔ tenant assignments with date ranges | 17 |
+| torrinha_payments | Monthly payment tracking | 255 |
+| torrinha_remotes | Remote controls + deposits | 0 |
+| torrinha_waitlist | Public waitlist signups | 1 |
+| torrinha_unmatched_transactions | Bank transactions pending review | 0 |
+| torrinha_inbox | Inbound emails + Claude draft replies | 9 |
+| torrinha_email_templates | Editable email templates (PT/EN) | 8 |
+| torrinha_email_log | All email communications (inbound + outbound) | 0 |
+| torrinha_tenant_contacts | Additional contacts per tenant | 0 |
+| torrinha_tenant_context | Rich context per tenant (relationship notes, pasted emails, agreements) | 0 |
+| torrinha_settings | System settings (key-value store) | 3 |
+| torrinha_gc_tokens | GoCardless API token storage | 0 |
+| torrinha_transaction_log | Full bank transaction log for audit | 5 |
 
 ---
 
 ## Features
 
 ### Core
-- [x] Tenant management (CRUD, multi-spot, inline editing)
-- [x] Spot management (17 spots, labels, owner spots)
-- [x] Payment tracking (monthly, date range, CSV export)
-- [x] Remote control tracking (issue, return, deposits)
-- [x] Public waitlist with T&Cs (PT/EN)
+- Tenant management — CRUD, detail panel (slide-over), multi-spot, contacts, context store
+- Spot management — 17 spots, labels, owner spots, spot assignments with date ranges
+- Payment tracking — monthly, date range, CSV export, Claude AI matching
+- Remote control tracking — issue, return, deposit management
+- Public waitlist with T&Cs (PT/EN)
+
+### Spot Assignments
+- Time-aware spot ↔ tenant assignments (start_date, end_date)
+- Upcoming tenant support — assign future tenants to occupied spots
+- Running (indefinite) vs fixed end-date contracts
+- Daily auto-transition cron — upcoming → active, active → inactive
+- Overlap prevention (Supabase exclusion constraint)
 
 ### Payments
-- [x] Monthly payment generation (auto on 1st via cron)
-- [x] Manual mark-as-paid
-- [x] CSV bank statement import with Claude AI matching
-- [x] Zapier webhook for Ponto bank transactions
-- [x] Auto-match incoming credits (±€1 tolerance)
-- [x] Unmatched transaction review panel
+- Monthly payment generation (auto on 1st via cron)
+- Manual mark-as-paid
+- CSV bank statement import with Claude AI matching
+- Zapier/Ponto webhook for bank transactions
+- Auto-match incoming credits (±€1 tolerance)
+- Unmatched transaction review panel
 
 ### Email System
-- [x] Bilingual email templates (PT/EN) — editable in admin
-- [x] Payment thank-you emails
-- [x] Payment reminders (8th of month)
-- [x] Owner unpaid alerts (5th of month)
-- [x] Owner overdue escalation (15th of month)
-- [x] Email preview and test send page
-- [x] Dry-run mode (EMAIL_DRY_RUN)
+- Bilingual email templates (PT/EN) — editable in admin
+- LLM-personalised payment emails (Claude drafts, static fallback)
+- Payment thank-you + reminder emails
+- Owner unpaid alerts (5th) + overdue escalation (15th)
+- Owner CC/BCC on all outbound emails (configurable in Settings)
+- Tenant contacts CC — additional recipients per tenant
+- Email log — all inbound + outbound stored in torrinha_email_log
+- Email preview and test send page
+- Dry-run mode (EMAIL_DRY_RUN)
 
 ### Smart Email Agent
-- [x] Inbound email processing (parking@mail.torrinha149.com)
-- [x] Claude-powered classification and reply drafting
-- [x] Admin inbox with send/edit/dismiss/delete
-- [x] Auto-send for high-confidence waitlist enquiries
-- [x] Urgent email forwarding to owner
+- Inbound email processing (parking@mail.torrinha149.com via Postmark)
+- Claude-powered classification and reply drafting
+- Admin inbox with send/edit/dismiss/delete
+- Auto-send for high-confidence waitlist enquiries
+- Urgent email forwarding to owner
+
+### Tenant Management
+- Slide-over detail panel — all tenant fields editable
+- Spot assignment section — running/set-date toggle, assignment history
+- Contacts section — multiple contacts per tenant with CC toggle
+- Context store — rich notes (relationship, communication, agreement)
+- Communications timeline — full email history per tenant
+- Payment history — last 6 months in detail panel
+- Status badges — Active, Upcoming, Inactive
 
 ### Dashboard
-- [x] Revenue summary (expected vs received vs delta)
-- [x] 17-spot payment status grid with click-to-detail
-- [x] 6-month payment history table
-- [x] Quick count badges (remotes, deposits, waitlist, unmatched)
+- Revenue summary — expected vs received vs delta
+- 17-spot payment status grid with click-to-detail
+- 6-month payment history table
+- Quick count badges — remotes, deposits, waitlist, unmatched
+- Spot transition indicators for upcoming assignments
 
 ### Cron Jobs (Railway)
-- [x] 1st — Generate pending payment rows
-- [x] 5th — Owner unpaid alert
-- [x] 8th — Tenant payment reminders
-- [x] 15th — Mark overdue + owner escalation
+- 1st — Generate pending payment rows
+- 5th — Owner unpaid alert
+- 8th — Tenant payment reminders (LLM-personalised)
+- 15th — Mark overdue + owner escalation
+- Daily 06:00 — Spot assignment transitions
+
+### Design System
+- Intercom-inspired warm palette — off-white (#faf9f6), orange accent (#ff5600), oat borders
+- CSS custom properties (design tokens) for colors, radii, typography
+- Inter font with negative tracking on headings
+- Shared UI components — Button, Badge, Card, SectionLabel
+- All pages on token system — zero stray Tailwind blue/gray primitives
 
 ---
 
-## Database Tables
-
-| Table | Purpose |
-|-------|---------|
-| torrinha_tenants | Tenant records |
-| torrinha_spots | Parking spots (17 total) |
-| torrinha_payments | Monthly payment tracking |
-| torrinha_remotes | Remote control inventory |
-| torrinha_waitlist | Prospect waiting list |
-| torrinha_unmatched_transactions | Bank transactions pending review |
-| torrinha_inbox | Inbound email agent inbox |
-| torrinha_email_templates | Editable email templates |
+*Auto-generated by `scripts/generate-status.mjs` on every push to main.*
+*See `.github/workflows/update-status.yml` for the automation.*
