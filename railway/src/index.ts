@@ -94,7 +94,7 @@ app.post("/webhooks/zapier", async (req, res) => {
     const pending = [...(pendingPayments ?? [])];
 
     for (const txn of transactions) {
-      // Extract fields — check Zapier's Title Case format first, then camelCase fallbacks
+      // Extract fields — Title Case (Zapier), snake_case, camelCase, nested attributes
       const amount = Math.abs(Number(
         txn["Amount"] ??
         txn.amount ??
@@ -105,6 +105,7 @@ app.post("/webhooks/zapier", async (req, res) => {
 
       const counterpart = (
         txn["Counterpart Name"] ??
+        txn.counterpart_name ??
         txn.counterpartName ??
         txn.counterparty ??
         txn.attributes?.counterpartName ??
@@ -114,6 +115,7 @@ app.post("/webhooks/zapier", async (req, res) => {
       const communication = (
         txn["Remittance Information"] ??
         txn["Description"] ??
+        txn.communication ??
         txn.remittanceInformation ??
         txn.description ??
         txn.attributes?.remittanceInformation ??
@@ -124,6 +126,7 @@ app.post("/webhooks/zapier", async (req, res) => {
       const valueDateRaw =
         txn["Value Date"] ??
         txn["Execution Date"] ??
+        txn.execution_date ??
         txn.valueDate ??
         txn.transaction_date ??
         txn.attributes?.valueDate ??
@@ -134,8 +137,8 @@ app.post("/webhooks/zapier", async (req, res) => {
 
       const transactionId = (
         txn["ID"] ??
-        txn.id ??
         txn.transaction_id ??
+        txn.id ??
         txn.attributes?.id ??
         null
       )?.toString().trim() || null;
