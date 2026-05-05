@@ -21,27 +21,31 @@ type LogRow = {
 type Filter = "all" | "auto_matched" | "ai_matched" | "manual" | "unmatched" | "ignored" | "ponto_shadow";
 
 const STATUS_COLORS: Record<string, string> = {
-  auto_matched: "bg-green-100 text-green-700 border-green-300",
-  iban_match:   "bg-green-100 text-green-700 border-green-300",
-  name_match:   "bg-green-100 text-green-700 border-green-300",
-  amount_only:  "bg-amber-100 text-amber-700 border-amber-300",
-  ai_matched: "bg-t-accent-light text-t-accent-text border-t-border",
-  manual: "bg-t-bg text-t-text-muted border-t-border",
-  unmatched: "bg-amber-100 text-amber-700 border-amber-300",
-  ignored: "bg-red-50 text-red-600 border-red-200",
-  ponto_shadow: "bg-purple-100 text-purple-700 border-purple-300",
+  auto_matched:  "bg-green-100 text-green-700 border-green-300",
+  iban_match:    "bg-green-100 text-green-700 border-green-300",
+  name_match:    "bg-green-100 text-green-700 border-green-300",
+  amount_only:   "bg-amber-100 text-amber-700 border-amber-300",
+  ai_match:      "bg-blue-100 text-blue-700 border-blue-300",
+  ai_suggested:  "bg-blue-50 text-blue-600 border-blue-200",
+  ai_matched:    "bg-t-accent-light text-t-accent-text border-t-border",
+  manual:        "bg-t-bg text-t-text-muted border-t-border",
+  unmatched:     "bg-amber-100 text-amber-700 border-amber-300",
+  ignored:       "bg-red-50 text-red-600 border-red-200",
+  ponto_shadow:  "bg-purple-100 text-purple-700 border-purple-300",
 };
 
 const STATUS_LABELS: Record<string, string> = {
-  auto_matched: "Auto-matched",
-  iban_match:   "IBAN match",
-  name_match:   "Name match",
-  amount_only:  "Amount match",
-  ai_matched: "AI matched",
-  manual: "Manual",
-  unmatched: "Unmatched",
-  ignored: "Ignored",
-  ponto_shadow: "Ponto (shadow)",
+  auto_matched:  "Auto-matched",
+  iban_match:    "IBAN match",
+  name_match:    "Name match",
+  amount_only:   "Amount match",
+  ai_match:      "AI match",
+  ai_suggested:  "AI suggests",
+  ai_matched:    "AI matched",
+  manual:        "Manual",
+  unmatched:     "Unmatched",
+  ignored:       "Ignored",
+  ponto_shadow:  "Ponto (shadow)",
 };
 
 function todayStr() {
@@ -66,16 +70,30 @@ function formatDate(iso: string): string {
   });
 }
 
-// Returns the badge key for a row — resolves match method from notes JSON for auto_matched rows
+// Returns the badge key — resolves match method from notes JSON for auto_matched rows,
+// and surfaces AI suggestions on unmatched rows.
 function badgeKey(row: LogRow): string {
   if (row.source === "ponto_shadow") return "ponto_shadow";
-  if (row.match_status === "auto_matched" && row.notes) {
+  if (row.notes) {
     try {
-      const parsed = JSON.parse(row.notes) as { match_method?: string };
-      if (parsed.match_method) return parsed.match_method;
-    } catch { /* notes may be a plain string */ }
+      const parsed = JSON.parse(row.notes) as { match_method?: string; ai_suggestion?: unknown };
+      if (row.match_status === "auto_matched" && parsed.match_method) return parsed.match_method;
+      if (row.match_status === "unmatched" && parsed.ai_suggestion) return "ai_suggested";
+    } catch { /* notes may be a plain string from older rows */ }
   }
   return row.match_status;
+}
+
+function badgeTitle(row: LogRow): string {
+  if (row.notes) {
+    try {
+      const parsed = JSON.parse(row.notes) as { ai_suggestion?: { tenantName?: string; reason?: string } };
+      if (parsed.ai_suggestion?.tenantName) {
+        return `AI suggests: ${parsed.ai_suggestion.tenantName}${parsed.ai_suggestion.reason ? ` — ${parsed.ai_suggestion.reason}` : ""}`;
+      }
+    } catch { /* ignore */ }
+  }
+  return "";
 }
 
 export default function BankClient() {
@@ -295,7 +313,10 @@ export default function BankClient() {
                       {r.counterpart ?? "—"}
                     </td>
                     <td className="px-4 py-2 text-sm">
-                      <span className={`px-2 py-0.5 rounded text-xs font-medium border ${STATUS_COLORS[badge] ?? "bg-t-bg text-t-text-muted border-t-border"}`}>
+                      <span
+                        className={`px-2 py-0.5 rounded text-xs font-medium border ${STATUS_COLORS[badge] ?? "bg-t-bg text-t-text-muted border-t-border"}`}
+                        title={badgeTitle(r) || undefined}
+                      >
                         {STATUS_LABELS[badge] ?? r.match_status}
                       </span>
                     </td>

@@ -11,6 +11,7 @@ import {
 import { startCrons } from "./crons";
 import { processInboundEmail } from "./email-agent";
 import { fetchTransactions } from "./ponto";
+import Anthropic from "@anthropic-ai/sdk";
 import { createHmac, timingSafeEqual } from "crypto";
 
 const app = express();
@@ -72,18 +73,89 @@ type EnrichedPayment = {
   tenant_language: string;
   contact_names: string[];
   known_names: string[];
+  spots: (string | number)[];
 };
+
+type MatchOutcome =
+  | { matched: true; payment: EnrichedPayment; method: string }
+  | { matched: false; aiSuggestion?: { tenantName: string; paymentId: string; reason: string } };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DbClient = any;
+
+async function aiMatch(
+  amount: number,
+  counterpart: string | null,
+  communication: string | null,
+  counterpartReference: string | null,
+  enriched: EnrichedPayment[]
+): Promise<{ payment: EnrichedPayment; confidence: string; reason: string } | null> {
+  try {
+    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+    const paymentListForAI = enriched.map((p) => ({
+      payment_id: p.id,
+      month: p.month,
+      expected_amount: p.amount_eur,
+      tenant_name: p.tenant_name,
+      contact_names: p.contact_names,
+      known_name_variants: p.known_names,
+      spots: p.spots,
+    }));
+
+    const prompt = `You are matching a single bank transaction to a parking rental payment for Torrinha Parking.
+
+TRANSACTION:
+- Amount: €${amount}
+- Counterpart name: ${counterpart || "unknown"}
+- Remittance information: ${communication || "none"}
+- Counterpart IBAN: ${counterpartReference || "unknown"}
+
+PENDING PAYMENTS:
+${JSON.stringify(paymentListForAI, null, 2)}
+
+Match the transaction to one of the pending payments. Amount must be within €2. Consider counterpart name similarity to tenant name, contact names, and known name variants. Remittance info may contain a spot number or name reference.
+
+Respond ONLY with a JSON object (no markdown, no explanation):
+{"payment_id":"...","confidence":"high"|"medium"|"low","reason":"..."}
+
+Or respond with: null
+
+If no payment is a plausible match, respond with null.`;
+
+    const response = await anthropic.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 256,
+      messages: [{ role: "user", content: prompt }],
+    });
+
+    const text = response.content[0].type === "text" ? response.content[0].text.trim() : "";
+    if (!text || text === "null") return null;
+
+    const parsed = JSON.parse(
+      text.replace(/```json?\n?/g, "").replace(/```/g, "").trim()
+    ) as { payment_id: string; confidence: string; reason: string };
+
+    const payment = enriched.find((p) => p.id === parsed.payment_id);
+    if (!payment) return null;
+
+    // Sanity-check: Claude could hallucinate a payment_id with the wrong amount
+    if (Math.abs(payment.amount_eur - amount) > 5) return null;
+
+    return { payment, confidence: parsed.confidence, reason: parsed.reason };
+  } catch {
+    return null; // never block a transaction on AI failure
+  }
+}
 
 async function findMatch(
   amount: number,
   counterpart: string | null,
   counterpartReference: string | null,
+  communication: string | null,
   enriched: EnrichedPayment[],
   db: DbClient
-): Promise<{ payment: EnrichedPayment; method: string } | null> {
+): Promise<MatchOutcome> {
   // Tier 1: IBAN match — highest confidence
   if (counterpartReference) {
     const { data: insight } = await db
@@ -97,7 +169,7 @@ async function findMatch(
       const payment = enriched.find(
         (p) => p.tenant_id === insight.tenant_id && Math.abs(p.amount_eur - amount) <= 2
       );
-      if (payment) return { payment, method: "iban_match" };
+      if (payment) return { matched: true, payment, method: "iban_match" };
     }
   }
 
@@ -121,15 +193,34 @@ async function findMatch(
         return aWords.filter((w) => bWords.includes(w)).length >= 2;
       });
 
-      if (isNameMatch) return { payment, method: "name_match" };
+      if (isNameMatch) return { matched: true, payment, method: "name_match" };
     }
+  }
+
+  // Tier 2.5: Claude AI match
+  const aiResult = await aiMatch(amount, counterpart, communication, counterpartReference, enriched);
+  if (aiResult) {
+    if (aiResult.confidence === "high") {
+      return { matched: true, payment: aiResult.payment, method: "ai_match" };
+    }
+    if (aiResult.confidence === "medium") {
+      return {
+        matched: false,
+        aiSuggestion: {
+          tenantName: aiResult.payment.tenant_name,
+          paymentId: aiResult.payment.id,
+          reason: aiResult.reason,
+        },
+      };
+    }
+    // low confidence → fall through to Tier 3
   }
 
   // Tier 3: Amount-only — only if unambiguous
   const amountMatches = enriched.filter((p) => Math.abs(p.amount_eur - amount) <= 1);
-  if (amountMatches.length === 1) return { payment: amountMatches[0], method: "amount_only" };
+  if (amountMatches.length === 1) return { matched: true, payment: amountMatches[0], method: "amount_only" };
 
-  return null;
+  return { matched: false };
 }
 
 async function learnFromMatch(
@@ -195,13 +286,14 @@ app.post("/webhooks/zapier", async (req, res) => {
     const db = supabase();
     const month = currentMonthStr();
 
-    // Fetch pending payments with contact names for name matching
+    // Fetch pending payments with contact names and spots for matching
     const { data: rawPayments } = await db
       .from("torrinha_payments")
       .select(`
         id, tenant_id, month, amount_eur, status,
         torrinha_tenants ( id, name, email, language, rent_eur,
-          torrinha_tenant_contacts ( name )
+          torrinha_tenant_contacts ( name ),
+          torrinha_spots!torrinha_spots_tenant_id_fkey ( number, label )
         )
       `)
       .eq("month", month)
@@ -232,6 +324,8 @@ app.post("/webhooks/zapier", async (req, res) => {
         known_names: (knownNameInsights ?? [])
           .filter((i: { tenant_id: string }) => i.tenant_id === tenantId)
           .map((i: { value: string }) => i.value),
+        spots: (tenant?.torrinha_spots ?? [])
+          .map((s: { number: number; label: string | null }) => s.label || s.number),
       };
     });
 
@@ -321,11 +415,11 @@ app.post("/webhooks/zapier", async (req, res) => {
         continue;
       }
 
-      // Three-tier match
-      const result = await findMatch(amount, counterpart, counterpartReference, enriched, db);
+      // Four-tier match: IBAN → Name → AI → Amount-only
+      const outcome = await findMatch(amount, counterpart, counterpartReference, communication, enriched, db);
 
-      if (result) {
-        const { payment, method } = result;
+      if (outcome.matched) {
+        const { payment, method } = outcome;
 
         // Remove from list to prevent double-matching in this batch
         const idx = enriched.indexOf(payment);
@@ -396,7 +490,12 @@ app.post("/webhooks/zapier", async (req, res) => {
             counterpart,
             communication,
             match_status: "unmatched",
-            notes: JSON.stringify({ raw_payload: txn, match_method: null, counterpart_reference: counterpartReference }),
+            notes: JSON.stringify({
+              raw_payload: txn,
+              match_method: null,
+              counterpart_reference: counterpartReference,
+              ai_suggestion: outcome.aiSuggestion ?? null,
+            }),
           });
         } catch (e) {
           console.error("[log] insert failed:", e);
