@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
   const { data: tenants } = await supabase
     .from("torrinha_tenants")
     .select("id, rent_eur")
-    .eq("active", true);
+    .eq("status", "active");
 
   if (!tenants || tenants.length === 0) {
     return NextResponse.json({ error: "No active tenants" }, { status: 400 });

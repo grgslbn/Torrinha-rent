@@ -545,7 +545,7 @@ app.post("/cron/reset-month", requireCronSecret, async (_req, res) => {
     for (const a of assignments) {
       const t = Array.isArray(a.torrinha_tenants) ? a.torrinha_tenants[0] : a.torrinha_tenants;
       const tenant = t as { id: string; rent_eur: number; status: string } | null;
-      if (tenant && !tenantMap.has(tenant.id)) {
+      if (tenant && tenant.status === "active" && !tenantMap.has(tenant.id)) {
         tenantMap.set(tenant.id, Number(tenant.rent_eur));
       }
     }

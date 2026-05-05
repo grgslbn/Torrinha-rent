@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 type RemoteTenant = {
   id: string;
   name: string;
-  active: boolean;
+  status: string;
   torrinha_spots: { number: number; label: string | null }[];
 };
 
@@ -53,7 +53,7 @@ export default function RemotesClient() {
       const tenants = await tenantsRes.json();
       setActiveTenants(
         tenants
-          .filter((t: { active: boolean }) => t.active)
+          .filter((t: { status: string }) => t.status === "active")
           .map(
             (t: {
               id: string;
@@ -285,7 +285,7 @@ export default function RemotesClient() {
             {activeRemotes.length > 0 ? (
               activeRemotes.map((r) => {
                 const tenant = r.torrinha_tenants;
-                const tenantInactive = tenant && !tenant.active;
+                const tenantInactive = tenant && tenant.status !== "active";
                 return (
                   <tr
                     key={r.id}

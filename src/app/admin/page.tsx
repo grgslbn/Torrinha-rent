@@ -52,7 +52,7 @@ export default async function AdminDashboard() {
     supabase
       .from("torrinha_tenants")
       .select("id, name, rent_eur, start_date, torrinha_spots!torrinha_spots_tenant_id_fkey(number, label)")
-      .eq("active", true)
+      .eq("status", "active")
       .order("name"),
     supabase
       .from("torrinha_spots")

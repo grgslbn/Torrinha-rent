@@ -79,7 +79,7 @@ export default async function TenantPortalPage({
     .from("torrinha_tenants")
     .select("id, name, language, rent_eur, start_date, torrinha_spots!torrinha_spots_tenant_id_fkey(number, label)")
     .eq("access_token", token)
-    .eq("active", true)
+    .eq("status", "active")
     .maybeSingle();
 
   if (!tenantRow) {
