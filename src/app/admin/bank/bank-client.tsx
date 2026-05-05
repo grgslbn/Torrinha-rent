@@ -22,6 +22,9 @@ type Filter = "all" | "auto_matched" | "ai_matched" | "manual" | "unmatched" | "
 
 const STATUS_COLORS: Record<string, string> = {
   auto_matched: "bg-green-100 text-green-700 border-green-300",
+  iban_match:   "bg-green-100 text-green-700 border-green-300",
+  name_match:   "bg-green-100 text-green-700 border-green-300",
+  amount_only:  "bg-amber-100 text-amber-700 border-amber-300",
   ai_matched: "bg-t-accent-light text-t-accent-text border-t-border",
   manual: "bg-t-bg text-t-text-muted border-t-border",
   unmatched: "bg-amber-100 text-amber-700 border-amber-300",
@@ -31,6 +34,9 @@ const STATUS_COLORS: Record<string, string> = {
 
 const STATUS_LABELS: Record<string, string> = {
   auto_matched: "Auto-matched",
+  iban_match:   "IBAN match",
+  name_match:   "Name match",
+  amount_only:  "Amount match",
   ai_matched: "AI matched",
   manual: "Manual",
   unmatched: "Unmatched",
@@ -60,9 +66,15 @@ function formatDate(iso: string): string {
   });
 }
 
-// Returns the badge key for a row — shadow entries get their own badge
+// Returns the badge key for a row — resolves match method from notes JSON for auto_matched rows
 function badgeKey(row: LogRow): string {
   if (row.source === "ponto_shadow") return "ponto_shadow";
+  if (row.match_status === "auto_matched" && row.notes) {
+    try {
+      const parsed = JSON.parse(row.notes) as { match_method?: string };
+      if (parsed.match_method) return parsed.match_method;
+    } catch { /* notes may be a plain string */ }
+  }
   return row.match_status;
 }
 
@@ -256,8 +268,8 @@ export default function BankClient() {
           <table className="min-w-full divide-y divide-t-border">
             <thead className="bg-t-bg">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-t-text-muted uppercase">Received</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-t-text-muted uppercase">Execution</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-t-text-muted uppercase">Synced</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-t-text-muted uppercase">Value Date</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-t-text-muted uppercase">Amount</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-t-text-muted uppercase">Counterpart</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-t-text-muted uppercase">Status</th>

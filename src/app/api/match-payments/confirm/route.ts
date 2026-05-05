@@ -2,6 +2,34 @@ import { createClient } from "@/lib/supabase/server";
 import { sendThankYouEmail } from "@/lib/email";
 import { NextRequest, NextResponse } from "next/server";
 
+async function learnFromMatch(
+  tenantId: string,
+  counterpart: string | null,
+  source: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  db: any
+) {
+  if (!counterpart) return;
+  try {
+    const upperName = counterpart.toUpperCase();
+    const { data: existing } = await db
+      .from("torrinha_tenant_insights")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("key", "known_name")
+      .eq("value", upperName)
+      .maybeSingle();
+    if (!existing) {
+      await db.from("torrinha_tenant_insights").insert({
+        tenant_id: tenantId,
+        key: "known_name",
+        value: upperName,
+        source,
+      });
+    }
+  } catch { /* insights table may not exist yet */ }
+}
+
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
   const {
@@ -28,7 +56,7 @@ export async function POST(request: NextRequest) {
     const isCsvImport = !transaction_id || transaction_id.startsWith("csv-");
     const matchedBy = isCsvImport ? "csv_import" : "claude_ai";
 
-    // Get transaction details (amount, counterpart, date) from DB or the match payload
+    // Get transaction details from DB or the match payload
     let txnAmount: number | null = null;
     let txnCounterpart: string | null = match.counterpart ?? null;
     let txnDescription: string | null = match.description ?? null;
@@ -75,16 +103,17 @@ export async function POST(request: NextRequest) {
         .eq("id", transaction_id);
     }
 
-    // Send thank-you email
+    // Fetch payment + tenant for email and learning
     const { data: payment } = await supabase
       .from("torrinha_payments")
-      .select("id, month, amount_eur, torrinha_tenants(name, email, language)")
+      .select("id, month, amount_eur, tenant_id, torrinha_tenants(id, name, email, language)")
       .eq("id", payment_id)
       .single();
 
     if (payment) {
       const tenantRaw = payment.torrinha_tenants;
       const tenant = (Array.isArray(tenantRaw) ? tenantRaw[0] : tenantRaw) as {
+        id: string;
         name: string;
         email: string;
         language: string;
@@ -101,15 +130,14 @@ export async function POST(request: NextRequest) {
           .from("torrinha_payments")
           .update({ thankyou_sent_at: new Date().toISOString() })
           .eq("id", payment_id);
+
+        // Store counterpart name variant for future matching
+        const tenantId: string = (payment as { tenant_id?: string }).tenant_id ?? tenant.id;
+        await learnFromMatch(tenantId, txnCounterpart, matchedBy, supabase);
       }
-    }
 
-    // Log transaction match to the bank log
-    if (payment) {
-      const p = payment as { id: string; month: string; amount_eur: number | null; torrinha_tenants: unknown };
-      const tenantRaw = p.torrinha_tenants;
+      // Log to transaction log
       const tenantForLog = (Array.isArray(tenantRaw) ? tenantRaw[0] : tenantRaw) as { id?: string } | null;
-
       try {
         await supabase.from("torrinha_transaction_log").insert({
           source: isCsvImport ? "csv_import" : "manual",
@@ -120,10 +148,10 @@ export async function POST(request: NextRequest) {
           communication: txnDescription,
           match_status: "ai_matched",
           matched_tenant_id: tenantForLog?.id ?? null,
-          matched_month: p.month,
+          matched_month: payment.month,
         });
       } catch {
-        // Log table may not exist yet — fail quietly
+        // Log table may not exist yet
       }
     }
 

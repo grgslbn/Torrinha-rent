@@ -59,6 +59,119 @@ app.get("/", (_req, res) => {
 });
 
 // ============================================================
+// Matching helpers
+// ============================================================
+
+type EnrichedPayment = {
+  id: string;
+  tenant_id: string;
+  month: string;
+  amount_eur: number;
+  tenant_name: string;
+  tenant_email: string;
+  tenant_language: string;
+  contact_names: string[];
+  known_names: string[];
+};
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type DbClient = any;
+
+async function findMatch(
+  amount: number,
+  counterpart: string | null,
+  counterpartReference: string | null,
+  enriched: EnrichedPayment[],
+  db: DbClient
+): Promise<{ payment: EnrichedPayment; method: string } | null> {
+  // Tier 1: IBAN match — highest confidence
+  if (counterpartReference) {
+    const { data: insight } = await db
+      .from("torrinha_tenant_insights")
+      .select("tenant_id")
+      .eq("key", "iban")
+      .eq("value", counterpartReference)
+      .maybeSingle();
+
+    if (insight) {
+      const payment = enriched.find(
+        (p) => p.tenant_id === insight.tenant_id && Math.abs(p.amount_eur - amount) <= 2
+      );
+      if (payment) return { payment, method: "iban_match" };
+    }
+  }
+
+  // Tier 2: Name match — fuzzy, with contact + known names
+  if (counterpart) {
+    const normalised = counterpart.toLowerCase().trim();
+
+    for (const payment of enriched) {
+      if (Math.abs(payment.amount_eur - amount) > 2) continue;
+
+      const namesToCheck = [
+        payment.tenant_name,
+        ...payment.contact_names,
+        ...payment.known_names,
+      ].filter(Boolean).map((n) => n.toLowerCase().trim());
+
+      const isNameMatch = namesToCheck.some((name) => {
+        if (normalised.includes(name) || name.includes(normalised)) return true;
+        const aWords = normalised.split(/\s+/).filter((w) => w.length >= 3);
+        const bWords = name.split(/\s+/).filter((w) => w.length >= 3);
+        return aWords.filter((w) => bWords.includes(w)).length >= 2;
+      });
+
+      if (isNameMatch) return { payment, method: "name_match" };
+    }
+  }
+
+  // Tier 3: Amount-only — only if unambiguous
+  const amountMatches = enriched.filter((p) => Math.abs(p.amount_eur - amount) <= 1);
+  if (amountMatches.length === 1) return { payment: amountMatches[0], method: "amount_only" };
+
+  return null;
+}
+
+async function learnFromMatch(
+  tenantId: string,
+  counterpart: string | null,
+  counterpartReference: string | null,
+  method: string,
+  db: DbClient
+) {
+  if (counterpartReference) {
+    try {
+      await db.from("torrinha_tenant_insights").upsert(
+        { tenant_id: tenantId, key: "iban", value: counterpartReference, source: method },
+        { onConflict: "key,value", ignoreDuplicates: true }
+      );
+    } catch { /* insights table may not exist yet */ }
+  }
+
+  if (counterpart) {
+    try {
+      const upperName = counterpart.toUpperCase();
+      const { data: existing } = await db
+        .from("torrinha_tenant_insights")
+        .select("id")
+        .eq("tenant_id", tenantId)
+        .eq("key", "known_name")
+        .eq("value", upperName)
+        .maybeSingle();
+
+      if (!existing) {
+        await db.from("torrinha_tenant_insights").insert({
+          tenant_id: tenantId,
+          key: "known_name",
+          value: upperName,
+          source: method,
+        });
+      }
+    } catch { /* insights table may not exist yet */ }
+  }
+}
+
+// ============================================================
 // POST /webhooks/zapier — Zapier forwards Ponto transactions
 // ============================================================
 
@@ -82,16 +195,48 @@ app.post("/webhooks/zapier", async (req, res) => {
     const db = supabase();
     const month = currentMonthStr();
 
-    // Get all pending/overdue payments for current month with tenant details
-    const { data: pendingPayments } = await db
+    // Fetch pending payments with contact names for name matching
+    const { data: rawPayments } = await db
       .from("torrinha_payments")
-      .select("*, torrinha_tenants(id, name, email, language, rent_eur)")
+      .select(`
+        id, tenant_id, month, amount_eur, status,
+        torrinha_tenants ( id, name, email, language, rent_eur,
+          torrinha_tenant_contacts ( name )
+        )
+      `)
       .eq("month", month)
       .in("status", ["pending", "overdue"]);
 
+    // Fetch known name variants for all tenants
+    const { data: knownNameInsights } = await db
+      .from("torrinha_tenant_insights")
+      .select("tenant_id, value")
+      .eq("key", "known_name");
+
+    // Build enriched payment list
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const enriched: EnrichedPayment[] = (rawPayments ?? []).map((p: any) => {
+      const tenant = p.torrinha_tenants;
+      const tenantId: string = p.tenant_id ?? tenant?.id ?? "";
+      return {
+        id: p.id,
+        tenant_id: tenantId,
+        month: p.month,
+        amount_eur: p.amount_eur ?? tenant?.rent_eur ?? 0,
+        tenant_name: tenant?.name ?? "",
+        tenant_email: tenant?.email ?? "",
+        tenant_language: tenant?.language ?? "pt",
+        contact_names: (tenant?.torrinha_tenant_contacts ?? [])
+          .map((c: { name: string }) => c.name)
+          .filter(Boolean),
+        known_names: (knownNameInsights ?? [])
+          .filter((i: { tenant_id: string }) => i.tenant_id === tenantId)
+          .map((i: { value: string }) => i.value),
+      };
+    });
+
     let matched = 0;
     let unmatched = 0;
-    const pending = [...(pendingPayments ?? [])];
 
     for (const txn of transactions) {
       // Extract fields — Title Case (Zapier), snake_case, camelCase, nested attributes
@@ -143,8 +288,24 @@ app.post("/webhooks/zapier", async (req, res) => {
         null
       )?.toString().trim() || null;
 
+      const counterpartReference = (
+        txn["Counterpart Reference"] ??
+        txn.counterpart_reference ??
+        txn.counterpartReference ??
+        txn.attributes?.counterpartReference ??
+        null
+      )?.toString().trim() || null;
+
+      // Tier 0: Dedup — skip if already logged
+      if (transactionId) {
+        const { count } = await db
+          .from("torrinha_transaction_log")
+          .select("*", { count: "exact", head: true })
+          .eq("transaction_id", transactionId);
+        if ((count ?? 0) > 0) continue;
+      }
+
       if (amount <= 0) {
-        // Log skipped debits/zero txns so we have a full record
         try {
           await db.from("torrinha_transaction_log").insert({
             source: "zapier",
@@ -154,69 +315,51 @@ app.post("/webhooks/zapier", async (req, res) => {
             counterpart,
             communication,
             match_status: "ignored",
-            notes: JSON.stringify(txn),
+            notes: JSON.stringify({ raw_payload: txn, match_method: null, counterpart_reference: counterpartReference }),
           });
-        } catch {
-          // table may not exist yet
-        }
+        } catch { /* table may not exist yet */ }
         continue;
       }
 
-      // Try to match: amount == tenant.rent_eur (exact) or within €1
-      const matchIdx = pending.findIndex((p) => {
-        const tenant = p.torrinha_tenants as {
-          rent_eur: number;
-        } | null;
-        if (!tenant) return false;
-        return Math.abs(amount - tenant.rent_eur) <= 1;
-      });
+      // Three-tier match
+      const result = await findMatch(amount, counterpart, counterpartReference, enriched, db);
 
-      if (matchIdx >= 0) {
-        const match = pending[matchIdx];
-        const tenant = match.torrinha_tenants as {
-          id: string;
-          name: string;
-          email: string;
-          language: string;
-          rent_eur: number;
-        };
+      if (result) {
+        const { payment, method } = result;
 
-        // Update payment as paid
-        await db
-          .from("torrinha_payments")
-          .update({
-            status: "paid",
-            matched_by: "ponto_auto",
-            paid_date: today(),
-            amount_eur: amount,
-          })
-          .eq("id", match.id);
+        // Remove from list to prevent double-matching in this batch
+        const idx = enriched.indexOf(payment);
+        if (idx >= 0) enriched.splice(idx, 1);
 
-        // Remove from list to avoid double-matching
-        pending.splice(matchIdx, 1);
+        // Update payment — use value date, not match timestamp
+        await db.from("torrinha_payments").update({
+          status: "paid",
+          matched_by: "ponto_auto",
+          paid_date: executionDate,
+          amount_eur: amount,
+        }).eq("id", payment.id);
 
-        // Fetch tenant contacts who receive emails
+        // Fetch contacts for CC
         const { data: contactRows } = await db
           .from("torrinha_tenant_contacts")
           .select("email")
-          .eq("tenant_id", tenant.id)
+          .eq("tenant_id", payment.tenant_id)
           .eq("receives_emails", true);
-        const extraCc = (contactRows ?? []).map((c) => c.email).filter(Boolean) as string[];
+        const extraCc = (contactRows ?? []).map((c: { email: string }) => c.email).filter(Boolean) as string[];
 
-        // Send thank-you email
         await sendThankYouEmail(
-          { id: tenant.id, name: tenant.name, email: tenant.email, language: tenant.language },
+          { id: payment.tenant_id, name: payment.tenant_name, email: payment.tenant_email, language: payment.tenant_language },
           { month, amount_eur: amount },
           extraCc
         );
 
-        // Update thankyou_sent_at
-        await db
-          .from("torrinha_payments")
+        await db.from("torrinha_payments")
           .update({ thankyou_sent_at: new Date().toISOString() })
-          .eq("id", match.id);
+          .eq("id", payment.id);
 
-        // Log the matched transaction
+        // Store IBAN + name variant for future matches
+        await learnFromMatch(payment.tenant_id, counterpart, counterpartReference, method, db);
+
         try {
           await db.from("torrinha_transaction_log").insert({
             source: "zapier",
@@ -226,9 +369,9 @@ app.post("/webhooks/zapier", async (req, res) => {
             counterpart,
             communication,
             match_status: "auto_matched",
-            matched_tenant_id: tenant.id,
-            matched_month: match.month,
-            notes: JSON.stringify(txn),
+            matched_tenant_id: payment.tenant_id,
+            matched_month: payment.month,
+            notes: JSON.stringify({ raw_payload: txn, match_method: method, counterpart_reference: counterpartReference }),
           });
         } catch (e) {
           console.error("[log] insert failed:", e);
@@ -236,7 +379,6 @@ app.post("/webhooks/zapier", async (req, res) => {
 
         matched++;
       } else {
-        // Store as unmatched for review
         await db.from("torrinha_unmatched_transactions").insert({
           raw_data: txn,
           amount_eur: amount,
@@ -245,7 +387,6 @@ app.post("/webhooks/zapier", async (req, res) => {
           transaction_date: executionDate,
         });
 
-        // Log unmatched transaction
         try {
           await db.from("torrinha_transaction_log").insert({
             source: "zapier",
@@ -255,7 +396,7 @@ app.post("/webhooks/zapier", async (req, res) => {
             counterpart,
             communication,
             match_status: "unmatched",
-            notes: JSON.stringify(txn),
+            notes: JSON.stringify({ raw_payload: txn, match_method: null, counterpart_reference: counterpartReference }),
           });
         } catch (e) {
           console.error("[log] insert failed:", e);
