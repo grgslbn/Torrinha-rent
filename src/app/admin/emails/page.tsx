@@ -137,13 +137,26 @@ export default function EmailsPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-t-text">Email Templates</h1>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-2xl font-bold text-t-text">Emails</h1>
         <Link
           href="/admin/emails/templates"
           className="px-3 py-1.5 text-xs bg-t-text text-white rounded-[var(--t-radius-sm)] hover:opacity-80"
         >
           Edit Templates
+        </Link>
+      </div>
+
+      {/* Tab bar */}
+      <div className="flex gap-1 mb-6 border-b border-t-border">
+        <span className="px-4 py-2 text-sm font-medium text-t-accent border-b-2 border-t-accent -mb-px">
+          Templates
+        </span>
+        <Link
+          href="/admin/emails/log"
+          className="px-4 py-2 text-sm font-medium text-t-text-muted hover:text-t-text -mb-px"
+        >
+          Log
         </Link>
       </div>
 

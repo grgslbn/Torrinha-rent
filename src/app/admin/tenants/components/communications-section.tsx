@@ -32,7 +32,10 @@ export default function CommunicationsSection({ tenantId }: { tenantId: string }
 
   const fetchEntries = useCallback(async () => {
     const res = await fetch(`/api/email-log?tenant_id=${tenantId}&limit=20`);
-    if (res.ok) setEntries(await res.json());
+    if (res.ok) {
+      const json = await res.json();
+      setEntries(Array.isArray(json) ? json : (json.data ?? []));
+    }
     setLoading(false);
   }, [tenantId]);
 
