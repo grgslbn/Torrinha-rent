@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("torrinha_email_log")
-    .select("id, direction, template, to_email, from_email, subject, body, sent_at, metadata")
+    .select("id, direction, template, to_email, from_email, subject, body, sent_at, status, metadata")
     .eq("tenant_id", tenant_id)
     .order("sent_at", { ascending: false })
     .limit(limit);

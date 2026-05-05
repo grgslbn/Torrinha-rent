@@ -1,3 +1,4 @@
+import { randomBytes } from "crypto";
 import { Resend } from "resend";
 import { createClient } from "@supabase/supabase-js";
 import { assembleTenantContext, generatePersonalisedEmail } from "./email-personalise";
@@ -112,6 +113,8 @@ async function logEmail(opts: {
   subject: string;
   body: string;
   metadata?: Record<string, unknown> | null;
+  status?: string;
+  approval_token?: string | null;
 }): Promise<void> {
   try {
     await supabase().from("torrinha_email_log").insert({
@@ -123,6 +126,8 @@ async function logEmail(opts: {
       subject: opts.subject,
       body: opts.body,
       metadata: opts.metadata ?? null,
+      ...(opts.status !== undefined ? { status: opts.status } : {}),
+      ...(opts.approval_token !== undefined ? { approval_token: opts.approval_token } : {}),
     });
   } catch (err) {
     console.error("[email-log] Failed to log email:", err);
@@ -152,22 +157,28 @@ async function sendEmail(
   let actualTo = to;
   let actualSubject = subject;
   let actualText = text;
+  let approvalToken: string | null = null;
 
   const dryRun = isDryRun();
   if (dryRun) {
     if (!ownerEmail) return { success: false, error: "EMAIL_DRY_RUN is true but OWNER_EMAIL not set" };
+    approvalToken = randomBytes(24).toString("hex");
+    const approvalUrl = `https://torrinha149.com/api/email-approve?token=${approvalToken}`;
     actualTo = ownerEmail;
     actualSubject = `[DRY RUN] ${subject}`;
-    actualText = `[This email would have been sent to: ${to}]\n\n${text}`;
+    actualText = `[This email would have been sent to: ${to}]\n[✅ Click to approve and send → ${approvalUrl}]\n\n${text}`;
     console.log(`[dry-run] Redirecting email from ${to} → ${ownerEmail}`);
   }
 
   const ccSettings = await getOwnerCcSettings();
   const isOwnerEmail = ownerEmail && actualTo === ownerEmail;
-  const ccAddresses = [
-    ...(!isOwnerEmail && ccSettings.enabled && ccSettings.email ? [ccSettings.email] : []),
-    ...(options?.extraCc ?? []),
-  ].filter(Boolean);
+  // Skip extraCc during dry run — contacts shouldn't receive the test copy
+  const ccAddresses = dryRun
+    ? (!isOwnerEmail && ccSettings.enabled && ccSettings.email ? [ccSettings.email] : [])
+    : [
+        ...(!isOwnerEmail && ccSettings.enabled && ccSettings.email ? [ccSettings.email] : []),
+        ...(options?.extraCc ?? []),
+      ].filter(Boolean);
 
   const ccPayload =
     ccAddresses.length > 0
@@ -199,8 +210,9 @@ async function sendEmail(
       body: text,
       metadata: {
         ...(options?.metadata ?? {}),
-        ...(dryRun ? { dry_run: true, redirected_to: actualTo } : {}),
+        ...(dryRun ? { dry_run: true, redirected_to: actualTo, cc_addresses: options?.extraCc ?? [] } : {}),
       },
+      ...(dryRun ? { status: "dry_run", approval_token: approvalToken } : { status: "sent" }),
     });
 
     return { success: true };

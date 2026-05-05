@@ -12,6 +12,7 @@ type EmailLogEntry = {
   subject: string;
   body: string;
   sent_at: string;
+  status?: string | null;
   metadata: Record<string, unknown> | null;
 };
 
@@ -53,7 +54,8 @@ export default function CommunicationsSection({ tenantId }: { tenantId: string }
       {entries.map((e) => {
         const expanded = expandedIds.has(e.id);
         const isPersonalised = e.metadata?.personalised === true;
-        const isDryRun = e.metadata?.dry_run === true;
+        const isDryRun = e.status === "dry_run" || (!e.status && e.metadata?.dry_run === true);
+        const isApproved = e.status === "approved";
         const templateLabel = e.template
           ? e.template.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
           : null;
@@ -71,8 +73,11 @@ export default function CommunicationsSection({ tenantId }: { tenantId: string }
                 {isPersonalised && (
                   <Badge variant="accent">AI</Badge>
                 )}
-                {isDryRun && (
-                  <Badge variant="warning">Dry run</Badge>
+                {isApproved && (
+                  <Badge variant="success">Approved &amp; sent</Badge>
+                )}
+                {isDryRun && !isApproved && (
+                  <Badge variant="warning">Dry run (pending)</Badge>
                 )}
               </div>
               <span className="text-xs text-t-text-muted shrink-0">{formatDate(e.sent_at)}</span>
