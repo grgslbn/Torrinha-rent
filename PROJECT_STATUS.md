@@ -2,7 +2,7 @@
 
 <!-- STATUS:START -->
 ## Live status (auto-updated on every push)
-**Last updated:** 2026-05-05 16:25 UTC
+**Last updated:** 2026-05-05 16:32 UTC
 
 | Metric | Value |
 |---|---|
@@ -13,7 +13,7 @@
 | 2026-05 paid | 5 |
 | 2026-05 pending | 8 |
 | 2026-05 overdue | 0 |
-| Waitlist (waiting) | 1 |
+| Waitlist (waiting) | 2 |
 | Unmatched transactions | 0 |
 | Inbox pending | 5 |
 | Email log entries | 2 |
@@ -46,7 +46,7 @@
 | torrinha_spot_assignments | Spot ↔ tenant assignments with date ranges | 17 |
 | torrinha_payments | Monthly payment tracking | 282 |
 | torrinha_remotes | Remote controls + deposits | 0 |
-| torrinha_waitlist | Public waitlist signups | 1 |
+| torrinha_waitlist | Public waitlist signups | 2 |
 | torrinha_unmatched_transactions | Bank transactions pending review | 0 |
 | torrinha_inbox | Inbound emails + Claude draft replies | 9 |
 | torrinha_email_templates | Editable email templates (PT/EN) | 8 |
