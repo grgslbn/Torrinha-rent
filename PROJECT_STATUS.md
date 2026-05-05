@@ -2,13 +2,13 @@
 
 <!-- STATUS:START -->
 ## Live status (auto-updated on every push)
-**Last updated:** 2026-05-05 16:32 UTC
+**Last updated:** 2026-05-05 18:27 UTC
 
 | Metric | Value |
 |---|---|
-| Active tenants | 15 |
+| Active tenants | 13 |
 | Upcoming tenants | 0 |
-| Inactive tenants | 0 |
+| Inactive tenants | 2 |
 | Total spots | 17 |
 | 2026-05 paid | 5 |
 | 2026-05 pending | 8 |
