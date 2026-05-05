@@ -18,7 +18,7 @@ type LogRow = {
   torrinha_tenants?: { id: string; name: string } | null;
 };
 
-type Filter = "all" | "auto_matched" | "ai_matched" | "manual" | "unmatched" | "ignored";
+type Filter = "all" | "auto_matched" | "ai_matched" | "manual" | "unmatched" | "ignored" | "ponto_shadow";
 
 const STATUS_COLORS: Record<string, string> = {
   auto_matched: "bg-green-100 text-green-700 border-green-300",
@@ -26,6 +26,7 @@ const STATUS_COLORS: Record<string, string> = {
   manual: "bg-t-bg text-t-text-muted border-t-border",
   unmatched: "bg-amber-100 text-amber-700 border-amber-300",
   ignored: "bg-red-50 text-red-600 border-red-200",
+  ponto_shadow: "bg-purple-100 text-purple-700 border-purple-300",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -34,6 +35,7 @@ const STATUS_LABELS: Record<string, string> = {
   manual: "Manual",
   unmatched: "Unmatched",
   ignored: "Ignored",
+  ponto_shadow: "Ponto (shadow)",
 };
 
 function todayStr() {
@@ -58,6 +60,12 @@ function formatDate(iso: string): string {
   });
 }
 
+// Returns the badge key for a row — shadow entries get their own badge
+function badgeKey(row: LogRow): string {
+  if (row.source === "ponto_shadow") return "ponto_shadow";
+  return row.match_status;
+}
+
 export default function BankClient() {
   const [rows, setRows] = useState<LogRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,7 +80,13 @@ export default function BankClient() {
     const params = new URLSearchParams();
     if (from) params.set("from", from);
     if (to) params.set("to", to + "T23:59:59");
-    if (filter !== "all") params.set("status", filter);
+
+    // ponto_shadow filters by source, everything else by match_status
+    if (filter === "ponto_shadow") {
+      params.set("source", "ponto_shadow");
+    } else if (filter !== "all") {
+      params.set("status", filter);
+    }
 
     const res = await fetch(`/api/admin/bank-log?${params.toString()}`);
     if (res.ok) {
@@ -219,6 +233,7 @@ export default function BankClient() {
             <option value="manual">Manual</option>
             <option value="unmatched">Unmatched</option>
             <option value="ignored">Ignored</option>
+            <option value="ponto_shadow">Ponto (shadow)</option>
           </select>
         </div>
         <button
@@ -251,33 +266,36 @@ export default function BankClient() {
               </tr>
             </thead>
             <tbody className="divide-y divide-t-border">
-              {rows.map((r) => (
-                <tr key={r.id} className="hover:bg-t-bg">
-                  <td className="px-4 py-2 text-sm text-t-text-muted whitespace-nowrap">
-                    {formatDate(r.received_at)}
-                  </td>
-                  <td className="px-4 py-2 text-sm text-t-text-secondary">
-                    {r.execution_date ?? "—"}
-                  </td>
-                  <td className="px-4 py-2 text-sm text-t-text font-medium">
-                    {r.amount_eur != null ? `€${Number(r.amount_eur).toFixed(2)}` : "—"}
-                  </td>
-                  <td className="px-4 py-2 text-sm text-t-text-secondary max-w-[200px] truncate" title={r.counterpart ?? ""}>
-                    {r.counterpart ?? "—"}
-                  </td>
-                  <td className="px-4 py-2 text-sm">
-                    <span className={`px-2 py-0.5 rounded text-xs font-medium border ${STATUS_COLORS[r.match_status] ?? "bg-t-bg text-t-text-muted border-t-border"}`}>
-                      {STATUS_LABELS[r.match_status] ?? r.match_status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2 text-sm text-t-text-secondary">
-                    {r.torrinha_tenants?.name ?? "—"}
-                  </td>
-                  <td className="px-4 py-2 text-sm text-t-text-muted">
-                    {r.matched_month ?? "—"}
-                  </td>
-                </tr>
-              ))}
+              {rows.map((r) => {
+                const badge = badgeKey(r);
+                return (
+                  <tr key={r.id} className="hover:bg-t-bg">
+                    <td className="px-4 py-2 text-sm text-t-text-muted whitespace-nowrap">
+                      {formatDate(r.received_at)}
+                    </td>
+                    <td className="px-4 py-2 text-sm text-t-text-secondary">
+                      {r.execution_date ?? "—"}
+                    </td>
+                    <td className="px-4 py-2 text-sm text-t-text font-medium">
+                      {r.amount_eur != null ? `€${Number(r.amount_eur).toFixed(2)}` : "—"}
+                    </td>
+                    <td className="px-4 py-2 text-sm text-t-text-secondary max-w-[200px] truncate" title={r.counterpart ?? ""}>
+                      {r.counterpart ?? "—"}
+                    </td>
+                    <td className="px-4 py-2 text-sm">
+                      <span className={`px-2 py-0.5 rounded text-xs font-medium border ${STATUS_COLORS[badge] ?? "bg-t-bg text-t-text-muted border-t-border"}`}>
+                        {STATUS_LABELS[badge] ?? r.match_status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2 text-sm text-t-text-secondary">
+                      {r.torrinha_tenants?.name ?? "—"}
+                    </td>
+                    <td className="px-4 py-2 text-sm text-t-text-muted">
+                      {r.matched_month ?? "—"}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}

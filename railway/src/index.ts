@@ -10,6 +10,7 @@ import {
 } from "./email";
 import { startCrons } from "./crons";
 import { processInboundEmail } from "./email-agent";
+import { fetchTransactions } from "./ponto";
 import { createHmac, timingSafeEqual } from "crypto";
 
 const app = express();
@@ -93,30 +94,54 @@ app.post("/webhooks/zapier", async (req, res) => {
     const pending = [...(pendingPayments ?? [])];
 
     for (const txn of transactions) {
-      // Extract amount — support various Zapier payload shapes
-      const amount = Math.abs(
-        Number(txn.amount ?? txn.amount_eur ?? txn.attributes?.amount ?? 0)
-      );
+      // Extract fields — check Zapier's Title Case format first, then camelCase fallbacks
+      const amount = Math.abs(Number(
+        txn["Amount"] ??
+        txn.amount ??
+        txn.amount_eur ??
+        txn.attributes?.amount ??
+        0
+      ));
 
-      const counterpart =
+      const counterpart = (
+        txn["Counterpart Name"] ??
         txn.counterpartName ??
         txn.counterparty ??
         txn.attributes?.counterpartName ??
-        null;
-      const communication =
+        null
+      )?.toString().trim() || null;
+
+      const communication = (
+        txn["Remittance Information"] ??
+        txn["Description"] ??
         txn.remittanceInformation ??
         txn.description ??
         txn.attributes?.remittanceInformation ??
         txn.attributes?.description ??
-        null;
-      const executionDate =
-        (txn.valueDate ?? txn.transaction_date ?? txn.attributes?.valueDate ?? "")
-          .split("T")[0] || today();
-      const transactionId =
-        txn.id ?? txn.transaction_id ?? txn.attributes?.id ?? null;
+        null
+      )?.toString().trim() || null;
+
+      const valueDateRaw =
+        txn["Value Date"] ??
+        txn["Execution Date"] ??
+        txn.valueDate ??
+        txn.transaction_date ??
+        txn.attributes?.valueDate ??
+        "";
+      const executionDate = valueDateRaw
+        ? new Date(valueDateRaw).toISOString().split("T")[0]
+        : today();
+
+      const transactionId = (
+        txn["ID"] ??
+        txn.id ??
+        txn.transaction_id ??
+        txn.attributes?.id ??
+        null
+      )?.toString().trim() || null;
 
       if (amount <= 0) {
-        // Log skipped debits/zero txns too so we have a full record
+        // Log skipped debits/zero txns so we have a full record
         try {
           await db.from("torrinha_transaction_log").insert({
             source: "zapier",
@@ -126,7 +151,7 @@ app.post("/webhooks/zapier", async (req, res) => {
             counterpart,
             communication,
             match_status: "ignored",
-            notes: "Non-credit or zero amount — skipped",
+            notes: JSON.stringify(txn),
           });
         } catch {
           // table may not exist yet
@@ -200,6 +225,7 @@ app.post("/webhooks/zapier", async (req, res) => {
             match_status: "auto_matched",
             matched_tenant_id: tenant.id,
             matched_month: match.month,
+            notes: JSON.stringify(txn),
           });
         } catch (e) {
           console.error("[log] insert failed:", e);
@@ -226,6 +252,7 @@ app.post("/webhooks/zapier", async (req, res) => {
             counterpart,
             communication,
             match_status: "unmatched",
+            notes: JSON.stringify(txn),
           });
         } catch (e) {
           console.error("[log] insert failed:", e);
@@ -878,6 +905,63 @@ app.post("/cron/transition-spots", requireCronSecret, async (_req, res) => {
   } catch (err) {
     console.error("[transition-spots] Error:", err);
     res.status(500).json({ error: "Failed to run transitions" });
+  }
+});
+
+// ============================================================
+// POST /cron/ponto-shadow — Poll Ponto every 6h, log as shadow
+// ============================================================
+
+app.post("/cron/ponto-shadow", requireCronSecret, async (_req, res) => {
+  try {
+    const { transactions, synchronizedAt } = await fetchTransactions();
+    const credits = transactions.filter((txn) => txn.attributes.amount > 0);
+    const db = supabase();
+
+    let logged = 0;
+
+    for (const txn of credits) {
+      const amount = txn.attributes.amount;
+      const counterpart = txn.attributes.counterpartName || null;
+      const communication =
+        txn.attributes.remittanceInformation ||
+        txn.attributes.description ||
+        null;
+      const executionDate =
+        txn.attributes.valueDate?.split("T")[0] ||
+        txn.attributes.executionDate?.split("T")[0] ||
+        new Date().toISOString().split("T")[0];
+      const transactionId = txn.id || null;
+
+      // Skip if already logged (dedup by transaction_id)
+      if (transactionId) {
+        const { count } = await db
+          .from("torrinha_transaction_log")
+          .select("*", { count: "exact", head: true })
+          .eq("transaction_id", transactionId);
+
+        if ((count ?? 0) > 0) continue;
+      }
+
+      await db.from("torrinha_transaction_log").insert({
+        source: "ponto_shadow",
+        transaction_id: transactionId,
+        execution_date: executionDate,
+        amount_eur: amount,
+        counterpart,
+        communication,
+        match_status: "unmatched",
+        notes: `Shadow mode — data quality test. Synced at: ${synchronizedAt || "unknown"}`,
+      });
+
+      logged++;
+    }
+
+    console.log(`[ponto-shadow] Logged ${logged} new transactions`);
+    res.json({ ok: true, logged });
+  } catch (err) {
+    console.error("[ponto-shadow] Error:", err);
+    res.status(500).json({ error: String(err) });
   }
 });
 

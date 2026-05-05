@@ -10,6 +10,7 @@ export async function GET(request: NextRequest) {
   const from = searchParams.get("from");
   const to = searchParams.get("to");
   const status = searchParams.get("status");
+  const source = searchParams.get("source");
 
   let query = supabase
     .from("torrinha_transaction_log")
@@ -19,6 +20,7 @@ export async function GET(request: NextRequest) {
   if (from) query = query.gte("received_at", from);
   if (to) query = query.lte("received_at", to);
   if (status && status !== "all") query = query.eq("match_status", status);
+  if (source) query = query.eq("source", source);
 
   const { data, error } = await query.limit(500);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

@@ -48,5 +48,8 @@ export function startCrons() {
     timezone: "UTC",
   });
 
+  // [shadow disabled — Zapier field mapping fixed, no longer needed]
+  // cron.schedule("0 */6 * * *", () => callCron("/cron/ponto-shadow"), { timezone: "UTC" });
+
   console.log("[cron] Scheduled: reset-month(1st), alert-owner(5th), remind-tenants(8th), escalate(15th), transition-spots(daily 06:00)");
 }
