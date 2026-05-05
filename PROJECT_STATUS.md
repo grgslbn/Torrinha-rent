@@ -2,7 +2,7 @@
 
 <!-- STATUS:START -->
 ## Live status (auto-updated on every push)
-**Last updated:** 2026-05-05 14:05 UTC
+**Last updated:** 2026-05-05 16:25 UTC
 
 | Metric | Value |
 |---|---|
@@ -10,8 +10,8 @@
 | Upcoming tenants | 0 |
 | Inactive tenants | 0 |
 | Total spots | 17 |
-| 2026-05 paid | 1 |
-| 2026-05 pending | 12 |
+| 2026-05 paid | 5 |
+| 2026-05 pending | 8 |
 | 2026-05 overdue | 0 |
 | Waitlist (waiting) | 1 |
 | Unmatched transactions | 0 |
@@ -44,7 +44,7 @@
 | torrinha_tenants | Tenant records (active, upcoming, inactive) | 15 |
 | torrinha_spots | Parking spots (17 total) | 17 |
 | torrinha_spot_assignments | Spot ↔ tenant assignments with date ranges | 17 |
-| torrinha_payments | Monthly payment tracking | 268 |
+| torrinha_payments | Monthly payment tracking | 282 |
 | torrinha_remotes | Remote controls + deposits | 0 |
 | torrinha_waitlist | Public waitlist signups | 1 |
 | torrinha_unmatched_transactions | Bank transactions pending review | 0 |
