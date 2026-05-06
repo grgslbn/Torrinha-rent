@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
   // Fetch all pending/overdue payments with tenant details
   const { data: payments, error: payError } = await supabase
     .from("torrinha_payments")
-    .select("id, tenant_id, month, amount_eur, status, torrinha_tenants(id, name, email, rent_eur, torrinha_spots!torrinha_spots_tenant_id_fkey(number, label))")
+    .select("id, tenant_id, month, amount_eur, status, torrinha_tenants(id, name, email, rent_eur, notes, torrinha_spots!torrinha_spots_tenant_id_fkey(number, label), torrinha_tenant_contacts(name))")
     .in("status", ["pending", "overdue"]);
 
   if (payError)
@@ -79,23 +79,54 @@ export async function POST(request: NextRequest) {
     });
   }
 
+  const tenantIds = payments.map((p) => p.tenant_id).filter(Boolean) as string[];
+
+  // Fetch insights and context in parallel
+  const [insightsResult, contextResult] = await Promise.all([
+    supabase
+      .from("torrinha_tenant_insights")
+      .select("tenant_id, key, value")
+      .in("key", ["known_name", "iban"])
+      .in("tenant_id", tenantIds),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any)
+      .from("torrinha_tenant_context")
+      .select("tenant_id, type, content")
+      .in("tenant_id", tenantIds),
+  ]);
+
+  const insights = insightsResult.data ?? [];
+  const contextEntries = contextResult.data ?? [];
+
   const paymentList = payments.map((p) => {
     const tenantRaw = p.torrinha_tenants;
-    const tenant = (Array.isArray(tenantRaw) ? tenantRaw[0] : tenantRaw) as {
-      id: string;
-      name: string;
-      email: string;
-      rent_eur: number;
-      torrinha_spots: { number: number; label: string | null }[];
-    } | null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const tenant = (Array.isArray(tenantRaw) ? tenantRaw[0] : tenantRaw) as any;
+    const tid = p.tenant_id;
+    const knownNames = insights
+      .filter((i: { tenant_id: string; key: string }) => i.tenant_id === tid && i.key === "known_name")
+      .map((i: { value: string }) => i.value);
+    const knownIbans = insights
+      .filter((i: { tenant_id: string; key: string }) => i.tenant_id === tid && i.key === "iban")
+      .map((i: { value: string }) => i.value);
+    const tenantContext = contextEntries
+      .filter((c: { tenant_id: string }) => c.tenant_id === tid)
+      .map((c: { type: string; content: string }) => `[${c.type}] ${c.content}`);
+    const contactNames = (tenant?.torrinha_tenant_contacts ?? [])
+      .map((c: { name: string }) => c.name)
+      .filter(Boolean);
     return {
       payment_id: p.id,
       month: p.month,
       expected_amount: p.amount_eur ?? tenant?.rent_eur,
       status: p.status,
       tenant_name: tenant?.name,
-      tenant_email: tenant?.email,
-      spots: tenant?.torrinha_spots?.map((s) => s.label || s.number) ?? [],
+      spots: tenant?.torrinha_spots?.map((s: { number: number; label: string | null }) => s.label || s.number) ?? [],
+      contact_names: contactNames,
+      known_names: knownNames,
+      known_ibans: knownIbans,
+      notes: tenant?.notes ?? null,
+      context: tenantContext,
     };
   });
 
@@ -117,10 +148,11 @@ PENDING/OVERDUE PAYMENTS:
 ${JSON.stringify(paymentList, null, 2)}
 
 Match each transaction to a payment if possible. Consider:
-- Amount match (exact or within €1-2 tolerance)
-- Counterparty name similarity to tenant name
-- Description/remittance info containing tenant name or spot number
-- IBAN if available
+- Amount match (within €5 tolerance)
+- Counterparty name similarity to tenant name, contact_names, or known_names
+- known_ibans: if the transaction IBAN matches a known IBAN, that's a strong signal
+- notes and context: operational notes may explain who pays for whom (e.g. a parent pays for a child, a company name pays for an employee)
+- Description/remittance info containing a tenant name or spot number
 - Transaction date relative to payment month
 
 Respond ONLY with a JSON array of matches. Each match should have:

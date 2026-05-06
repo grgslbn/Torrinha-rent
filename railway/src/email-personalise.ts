@@ -38,6 +38,7 @@ export type TenantEmailContext = {
     content: string;
   }[];
   tenant_notes: string | null;
+  licence_plates: string[];
   portal_url: string;
 };
 
@@ -83,7 +84,7 @@ export async function assembleTenantContext(
   // Fetch tenant base info
   const { data: tenant } = await db
     .from("torrinha_tenants")
-    .select("name, language, start_date, notes, access_token, torrinha_spots(number, label)")
+    .select("name, language, start_date, notes, licence_plates, access_token, torrinha_spots(number, label)")
     .eq("id", tenantId)
     .single();
 
@@ -199,6 +200,7 @@ export async function assembleTenantContext(
     recent_emails: recentEmails,
     context_entries: contextEntries,
     tenant_notes: tenant.notes ?? null,
+    licence_plates: (tenant.licence_plates as string[] | null) ?? [],
     portal_url: portalUrl,
   };
 }
@@ -245,6 +247,7 @@ Owner context:
 ${contextLines || "  None"}
 
 Operational notes: ${context.tenant_notes || "none"}
+Licence plates: ${context.licence_plates.length ? context.licence_plates.join(", ") : "none"}
 
 Write the email body now.`;
 

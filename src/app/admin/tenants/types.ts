@@ -50,6 +50,7 @@ export type Tenant = {
   notes: string | null;
   active: boolean;
   status: "active" | "upcoming" | "inactive";
+  licence_plates: string[];
   access_token: string | null;
   torrinha_spots: { id: string; number: number; label: string | null }[];
   torrinha_remotes: Remote[];

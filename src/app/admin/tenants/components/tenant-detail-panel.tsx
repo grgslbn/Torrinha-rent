@@ -66,6 +66,9 @@ export default function TenantDetailPanel({
 }) {
   const [visible, setVisible] = useState(false);
   const [draft, setDraft] = useState<DraftFields>({});
+  const [licencePlates, setLicencePlates] = useState<string[]>(tenant.licence_plates ?? []);
+  const [platesDirty, setPlatesDirty] = useState(false);
+  const [plateInput, setPlateInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState("");
   const [error, setError] = useState("");
@@ -81,6 +84,9 @@ export default function TenantDetailPanel({
 
   useEffect(() => {
     setDraft({});
+    setLicencePlates(tenant.licence_plates ?? []);
+    setPlatesDirty(false);
+    setPlateInput("");
     setShowDeactivate(false);
     setRemotesReturned(false);
     setDepositRefunded(false);
@@ -107,7 +113,20 @@ export default function TenantDetailPanel({
     return (tenant[field as keyof Tenant] as string | null) ?? "";
   }
 
-  const isDirty = Object.keys(draft).length > 0;
+  const isDirty = Object.keys(draft).length > 0 || platesDirty;
+
+  function addPlate() {
+    const plate = plateInput.trim().toUpperCase();
+    if (!plate || licencePlates.includes(plate)) return;
+    setLicencePlates((prev) => [...prev, plate]);
+    setPlatesDirty(true);
+    setPlateInput("");
+  }
+
+  function removePlate(plate: string) {
+    setLicencePlates((prev) => prev.filter((p) => p !== plate));
+    setPlatesDirty(true);
+  }
 
   async function handleSave() {
     if (!isDirty) return;
@@ -118,6 +137,7 @@ export default function TenantDetailPanel({
       if (k === "rent_eur" || k === "payment_due_day") patch[k] = Number(v);
       else patch[k] = v || null;
     }
+    if (platesDirty) patch.licence_plates = licencePlates;
     const res = await fetch("/api/tenants", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -125,6 +145,7 @@ export default function TenantDetailPanel({
     });
     if (res.ok) {
       setDraft({});
+      setPlatesDirty(false);
       setSavedMsg("Saved!");
       setTimeout(() => setSavedMsg(""), 3000);
       onRefresh();
@@ -228,6 +249,45 @@ export default function TenantDetailPanel({
               </FieldRow>
               <FieldRow label="Phone">
                 <input type="tel" value={val("phone")} onChange={(e) => setField("phone", e.target.value)} placeholder="—" className={INPUT} />
+              </FieldRow>
+              <FieldRow label="Plates">
+                <div className="space-y-1.5">
+                  <div className="flex flex-wrap gap-1.5">
+                    {licencePlates.map((plate) => (
+                      <span
+                        key={plate}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-mono font-medium bg-t-bg border border-t-border rounded-[var(--t-radius-sm)] text-t-text"
+                      >
+                        {plate}
+                        <button
+                          type="button"
+                          onClick={() => removePlate(plate)}
+                          className="text-t-text-muted hover:text-t-text leading-none"
+                          aria-label={`Remove ${plate}`}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                  <div className="flex gap-1.5">
+                    <input
+                      type="text"
+                      value={plateInput}
+                      onChange={(e) => setPlateInput(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addPlate(); } }}
+                      placeholder="AA-00-BB"
+                      className="w-32 px-2 py-1 border border-t-border rounded-[var(--t-radius-sm)] text-xs font-mono text-t-text bg-t-surface focus:outline-none focus:ring-1 focus:ring-t-accent uppercase"
+                    />
+                    <button
+                      type="button"
+                      onClick={addPlate}
+                      className="px-2 py-1 text-xs bg-t-bg border border-t-border rounded-[var(--t-radius-sm)] text-t-text hover:bg-t-surface"
+                    >
+                      + Add
+                    </button>
+                  </div>
+                </div>
               </FieldRow>
               <FieldRow label="Rent">
                 <div className="flex items-center gap-1">

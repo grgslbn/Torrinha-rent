@@ -73,7 +73,10 @@ type EnrichedPayment = {
   tenant_language: string;
   contact_names: string[];
   known_names: string[];
+  known_ibans: string[];
   spots: (string | number)[];
+  notes: string | null;
+  context_entries: { type: string; title: string; content: string }[];
 };
 
 type MatchOutcome =
@@ -93,15 +96,18 @@ async function aiMatch(
   try {
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-    const paymentListForAI = enriched.map((p) => ({
-      payment_id: p.id,
-      month: p.month,
-      expected_amount: p.amount_eur,
-      tenant_name: p.tenant_name,
-      contact_names: p.contact_names,
-      known_name_variants: p.known_names,
-      spots: p.spots,
-    }));
+    const tenantBlocks = enriched.map((p) => {
+      const lines = [
+        `Tenant: ${p.tenant_name} (payment_id: ${p.id})`,
+        `  Rent: €${p.amount_eur}, Month: ${p.month}, Spots: ${p.spots.join(", ") || "—"}`,
+      ];
+      if (p.contact_names.length) lines.push(`  Contacts: ${p.contact_names.join(", ")}`);
+      if (p.known_names.length) lines.push(`  Known names: ${p.known_names.join(", ")}`);
+      if (p.known_ibans.length) lines.push(`  Known IBANs: ${p.known_ibans.join(", ")}`);
+      if (p.notes) lines.push(`  Notes: ${p.notes}`);
+      for (const c of p.context_entries) lines.push(`  Context [${c.type}]: ${c.content}`);
+      return lines.join("\n");
+    }).join("\n\n");
 
     const prompt = `You are matching a single bank transaction to a parking rental payment for Torrinha Parking.
 
@@ -112,9 +118,9 @@ TRANSACTION:
 - Counterpart IBAN: ${counterpartReference || "unknown"}
 
 PENDING PAYMENTS:
-${JSON.stringify(paymentListForAI, null, 2)}
+${tenantBlocks}
 
-Match the transaction to one of the pending payments. Amount must be within €2. Consider counterpart name similarity to tenant name, contact names, and known name variants. Remittance info may contain a spot number or name reference.
+Match the transaction to one of the pending payments. Amount must be within €5. Use all available context: name variants, known IBANs, contacts who pay on behalf, and operational notes. Remittance info may contain a spot number or name.
 
 Respond ONLY with a JSON object (no markdown, no explanation):
 {"payment_id":"...","confidence":"high"|"medium"|"low","reason":"..."}
@@ -291,7 +297,7 @@ app.post("/webhooks/zapier", async (req, res) => {
       .from("torrinha_payments")
       .select(`
         id, tenant_id, month, amount_eur, status,
-        torrinha_tenants ( id, name, email, language, rent_eur,
+        torrinha_tenants ( id, name, email, language, rent_eur, notes,
           torrinha_tenant_contacts ( name ),
           torrinha_spots!torrinha_spots_tenant_id_fkey ( number, label )
         )
@@ -299,11 +305,20 @@ app.post("/webhooks/zapier", async (req, res) => {
       .eq("month", month)
       .in("status", ["pending", "overdue"]);
 
-    // Fetch known name variants for all tenants
-    const { data: knownNameInsights } = await db
+    // Fetch known name variants and IBANs for all tenants
+    const { data: allInsights } = await db
       .from("torrinha_tenant_insights")
-      .select("tenant_id, value")
-      .eq("key", "known_name");
+      .select("tenant_id, key, value")
+      .in("key", ["known_name", "iban"]);
+
+    // Fetch context entries for all tenants
+    const tenantIds = (rawPayments ?? []).map((p: any) => p.tenant_id ?? p.torrinha_tenants?.id).filter(Boolean);
+    const { data: allContextEntries } = tenantIds.length
+      ? await db
+          .from("torrinha_tenant_context")
+          .select("tenant_id, type, title, content")
+          .in("tenant_id", tenantIds)
+      : { data: [] };
 
     // Build enriched payment list
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -321,11 +336,22 @@ app.post("/webhooks/zapier", async (req, res) => {
         contact_names: (tenant?.torrinha_tenant_contacts ?? [])
           .map((c: { name: string }) => c.name)
           .filter(Boolean),
-        known_names: (knownNameInsights ?? [])
-          .filter((i: { tenant_id: string }) => i.tenant_id === tenantId)
+        known_names: (allInsights ?? [])
+          .filter((i: { tenant_id: string; key: string }) => i.tenant_id === tenantId && i.key === "known_name")
+          .map((i: { value: string }) => i.value),
+        known_ibans: (allInsights ?? [])
+          .filter((i: { tenant_id: string; key: string }) => i.tenant_id === tenantId && i.key === "iban")
           .map((i: { value: string }) => i.value),
         spots: (tenant?.torrinha_spots ?? [])
           .map((s: { number: number; label: string | null }) => s.label || s.number),
+        notes: tenant?.notes ?? null,
+        context_entries: (allContextEntries ?? [])
+          .filter((c: { tenant_id: string }) => c.tenant_id === tenantId)
+          .map((c: { type: string; title: string; content: string }) => ({
+            type: c.type,
+            title: c.title,
+            content: c.content,
+          })),
       };
     });
 
