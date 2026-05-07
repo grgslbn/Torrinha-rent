@@ -986,17 +986,29 @@ app.post("/email/send-reply", requireCronSecret, async (req, res) => {
     const { data: settingsRows } = await db
       .from("torrinha_settings")
       .select("key, value")
-      .in("key", ["owner_cc_enabled", "owner_cc_email", "owner_cc_mode"]);
+      .in("key", ["owner_cc_enabled", "owner_cc_email", "owner_cc_mode", "owner_cc2_enabled", "owner_cc2_email", "owner_cc2_mode"]);
     const settingsMap = Object.fromEntries((settingsRows ?? []).map((r) => [r.key, r.value]));
-    const ccEnabled = settingsMap.owner_cc_enabled === true;
-    const ccEmail = typeof settingsMap.owner_cc_email === "string" ? settingsMap.owner_cc_email : "";
-    const ccMode = settingsMap.owner_cc_mode === "cc" ? "cc" : "bcc";
-    const replyCcPayload =
-      ccEnabled && ccEmail
-        ? ccMode === "cc"
-          ? { cc: ccEmail }
-          : { bcc: ccEmail }
-        : {};
+
+    const replyCcArr: string[] = [];
+    const replyBccArr: string[] = [];
+    const cc1Enabled = settingsMap.owner_cc_enabled === true;
+    const cc1Email = typeof settingsMap.owner_cc_email === "string" ? settingsMap.owner_cc_email : "";
+    const cc1Mode = settingsMap.owner_cc_mode === "cc" ? "cc" : "bcc";
+    if (cc1Enabled && cc1Email) {
+      if (cc1Mode === "cc") replyCcArr.push(cc1Email);
+      else replyBccArr.push(cc1Email);
+    }
+    const cc2Enabled = settingsMap.owner_cc2_enabled === true;
+    const cc2Email = typeof settingsMap.owner_cc2_email === "string" ? settingsMap.owner_cc2_email : "";
+    const cc2Mode = settingsMap.owner_cc2_mode === "cc" ? "cc" : "bcc";
+    if (cc2Enabled && cc2Email) {
+      if (cc2Mode === "cc") replyCcArr.push(cc2Email);
+      else replyBccArr.push(cc2Email);
+    }
+    const replyCcPayload = {
+      ...(replyCcArr.length > 0 ? { cc: replyCcArr } : {}),
+      ...(replyBccArr.length > 0 ? { bcc: replyBccArr } : {}),
+    };
 
     // Send via Resend
     const { Resend } = await import("resend");

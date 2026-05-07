@@ -36,22 +36,32 @@ function formatMonth(month: string, lang: string): string {
 
 // --- Owner CC settings (fetched per-request, no cache needed server-side) ---
 
-async function getOwnerCcSettings() {
+type CcConfig = { enabled: boolean; email: string; mode: "cc" | "bcc" };
+
+async function getOwnerCcSettings(): Promise<{ cc1: CcConfig; cc2: CcConfig }> {
+  const fallback = { cc1: { enabled: false, email: "", mode: "bcc" as const }, cc2: { enabled: false, email: "", mode: "bcc" as const } };
   try {
     const supabase = await createClient();
     const { data } = await supabase
       .from("torrinha_settings")
       .select("key, value")
-      .in("key", ["owner_cc_enabled", "owner_cc_email", "owner_cc_mode"]);
+      .in("key", ["owner_cc_enabled", "owner_cc_email", "owner_cc_mode", "owner_cc2_enabled", "owner_cc2_email", "owner_cc2_mode"]);
 
     const map = Object.fromEntries((data ?? []).map((r) => [r.key, r.value]));
     return {
-      enabled: map.owner_cc_enabled === true,
-      email: typeof map.owner_cc_email === "string" ? map.owner_cc_email : "",
-      mode: map.owner_cc_mode === "cc" ? ("cc" as const) : ("bcc" as const),
+      cc1: {
+        enabled: map.owner_cc_enabled === true,
+        email: typeof map.owner_cc_email === "string" ? map.owner_cc_email : "",
+        mode: map.owner_cc_mode === "cc" ? "cc" : "bcc",
+      },
+      cc2: {
+        enabled: map.owner_cc2_enabled === true,
+        email: typeof map.owner_cc2_email === "string" ? map.owner_cc2_email : "",
+        mode: map.owner_cc2_mode === "cc" ? "cc" : "bcc",
+      },
     };
   } catch {
-    return { enabled: false, email: "", mode: "bcc" as const };
+    return fallback;
   }
 }
 
@@ -187,17 +197,30 @@ async function sendEmail(
 
   const ccSettings = await getOwnerCcSettings();
   const isOwnerEmail = ownerEmail && to === ownerEmail;
-  const ccAddresses = [
-    ...(!isOwnerEmail && ccSettings.enabled && ccSettings.email ? [ccSettings.email] : []),
+
+  const cc1Addrs = [
+    ...(!isOwnerEmail && ccSettings.cc1.enabled && ccSettings.cc1.email ? [ccSettings.cc1.email] : []),
     ...(options?.extraCc ?? []),
   ].filter(Boolean);
+  const cc2Addrs = !isOwnerEmail && ccSettings.cc2.enabled && ccSettings.cc2.email
+    ? [ccSettings.cc2.email]
+    : [];
 
-  const ccPayload =
-    ccAddresses.length > 0
-      ? ccSettings.mode === "cc"
-        ? { cc: ccAddresses }
-        : { bcc: ccAddresses }
-      : {};
+  const ccArr: string[] = [];
+  const bccArr: string[] = [];
+  if (cc1Addrs.length > 0) {
+    if (ccSettings.cc1.mode === "cc") ccArr.push(...cc1Addrs);
+    else bccArr.push(...cc1Addrs);
+  }
+  if (cc2Addrs.length > 0) {
+    if (ccSettings.cc2.mode === "cc") ccArr.push(...cc2Addrs);
+    else bccArr.push(...cc2Addrs);
+  }
+
+  const ccPayload = {
+    ...(ccArr.length > 0 ? { cc: ccArr } : {}),
+    ...(bccArr.length > 0 ? { bcc: bccArr } : {}),
+  };
 
   try {
     const { error } = await getResend().emails.send({ from, to, ...ccPayload, subject, text });
