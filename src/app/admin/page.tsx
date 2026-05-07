@@ -48,6 +48,7 @@ export default async function AdminDashboard() {
     { data: remotesRaw },
     { count: unmatchedCount },
     { data: futureAssignmentsRaw },
+    { data: lastSyncRow },
   ] = await Promise.all([
     supabase
       .from("torrinha_tenants")
@@ -79,6 +80,13 @@ export default async function AdminDashboard() {
       .select("spot_id, start_date, torrinha_tenants(name)")
       .gt("start_date", today)
       .order("start_date", { ascending: true }),
+    supabase
+      .from("torrinha_transaction_log")
+      .select("received_at")
+      .eq("source", "zapier")
+      .order("received_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   const activeTenants = (activeTenantsRaw ?? []) as unknown as {
@@ -223,6 +231,8 @@ export default async function AdminDashboard() {
     .filter((r) => r.deposit_paid)
     .reduce((s, r) => s + Number(r.deposit_eur ?? 0), 0);
 
+  const lastSyncAt = (lastSyncRow as { received_at: string } | null)?.received_at ?? null;
+
   return (
     <DashboardClient
       totalExpected={totalExpected}
@@ -237,6 +247,7 @@ export default async function AdminDashboard() {
       depositsHeld={depositsHeld}
       waitlistCount={waitlistCount ?? 0}
       unmatchedCount={unmatchedCount ?? 0}
+      lastSyncAt={lastSyncAt}
     />
   );
 }

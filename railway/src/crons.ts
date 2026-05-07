@@ -48,8 +48,13 @@ export function startCrons() {
     timezone: "UTC",
   });
 
+  // Daily 08:00 UTC — check bank sync health (Ponto/Zapier connection)
+  cron.schedule("0 8 * * *", () => callCron("/cron/check-bank-health"), {
+    timezone: "UTC",
+  });
+
   // [shadow disabled — Zapier field mapping fixed, no longer needed]
   // cron.schedule("0 */6 * * *", () => callCron("/cron/ponto-shadow"), { timezone: "UTC" });
 
-  console.log("[cron] Scheduled: reset-month(1st), alert-owner(5th), remind-tenants(8th), escalate(15th), transition-spots(daily 06:00)");
+  console.log("[cron] Scheduled: reset-month(1st), alert-owner(5th), remind-tenants(8th), escalate(15th), transition-spots(daily 06:00), check-bank-health(daily 08:00)");
 }

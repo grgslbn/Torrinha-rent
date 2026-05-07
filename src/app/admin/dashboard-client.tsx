@@ -52,6 +52,7 @@ type Props = {
   depositsHeld: number;
   waitlistCount: number;
   unmatchedCount: number;
+  lastSyncAt: string | null;
 };
 
 // --- Helpers ---
@@ -105,8 +106,13 @@ export default function DashboardClient({
   depositsHeld,
   waitlistCount,
   unmatchedCount,
+  lastSyncAt,
 }: Props) {
   const [selectedSpot, setSelectedSpot] = useState<number | null>(null);
+
+  const bankSyncDays = lastSyncAt
+    ? Math.floor((Date.now() - new Date(lastSyncAt).getTime()) / 86400000)
+    : null;
 
   const isOwner = (s: SpotData) => s.label === "Owner";
   const tenantSpots = spots.filter((s) => !isOwner(s));
@@ -116,6 +122,16 @@ export default function DashboardClient({
   return (
     <div>
       <h1 className="text-2xl font-bold tracking-tight text-t-text mb-6">Dashboard</h1>
+
+      {bankSyncDays !== null && bankSyncDays >= 3 && (
+        <div className={`mb-4 px-4 py-3 rounded-[var(--t-radius-md)] text-sm flex items-center gap-2 ${bankSyncDays >= 7 ? "bg-red-50 text-red-700 border border-red-300" : "bg-amber-50 text-amber-700 border border-amber-300"}`}>
+          <span>{bankSyncDays >= 7 ? "🚨" : "⚠️"}</span>
+          <span>
+            Bank sync is {bankSyncDays} day{bankSyncDays !== 1 ? "s" : ""} old — check Ponto/Zapier connection.{" "}
+            <Link href="/admin/bank" className="underline font-medium">View bank log &rarr;</Link>
+          </span>
+        </div>
+      )}
 
       {/* ============ Section 1: Revenue Summary ============ */}
       <Card className="p-5 mb-6">

@@ -222,12 +222,25 @@ export default function BankClient() {
             {summary.month.matched} matched · {summary.month.unmatched} unmatched
           </p>
         </div>
-        <div className="bg-t-surface border border-t-border rounded-[var(--t-radius-lg)] p-5">
-          <p className="text-xs text-t-text-muted uppercase tracking-wide">Last sync</p>
-          <p className="text-sm font-medium text-t-text mt-2">
-            {summary.lastSync ? formatDate(summary.lastSync) : "—"}
-          </p>
-        </div>
+        {(() => {
+          const daysSinceSync = summary.lastSync
+            ? Math.floor((Date.now() - new Date(summary.lastSync).getTime()) / 86400000)
+            : null;
+          const syncWarning = daysSinceSync !== null && daysSinceSync >= 3;
+          return (
+            <div className={`rounded-[var(--t-radius-lg)] p-5 border ${syncWarning ? "border-amber-300 bg-amber-50" : "border-t-border bg-t-surface"}`}>
+              <p className={`text-xs uppercase tracking-wide ${syncWarning ? "text-amber-700" : "text-t-text-muted"}`}>Last sync</p>
+              <p className={`text-sm font-medium mt-2 ${syncWarning ? "text-amber-700" : "text-t-text"}`}>
+                {summary.lastSync ? formatDate(summary.lastSync) : "—"}
+              </p>
+              {syncWarning && (
+                <p className="text-xs text-amber-600 mt-1">
+                  {daysSinceSync}d ago — check Ponto/Zapier
+                </p>
+              )}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Filters */}

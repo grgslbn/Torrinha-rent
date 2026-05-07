@@ -1235,6 +1235,115 @@ app.post("/cron/ponto-shadow", requireCronSecret, async (_req, res) => {
 });
 
 // ============================================================
+// POST /cron/check-bank-health — daily check for Ponto/Zapier sync health
+// ============================================================
+
+async function sendBankHealthAlert(
+  level: "warning" | "critical" | "no_data",
+  daysSince?: number,
+  lastSync?: Date
+) {
+  const ownerEmail = process.env.OWNER_EMAIL;
+  if (!ownerEmail) return;
+
+  const db = supabase();
+  const todayDate = today();
+
+  const { count } = await db
+    .from("torrinha_email_log")
+    .select("*", { count: "exact", head: true })
+    .eq("template", "bank_health_alert")
+    .gte("sent_at", `${todayDate}T00:00:00Z`);
+
+  if ((count ?? 0) > 0) return;
+
+  const subjects: Record<string, string> = {
+    no_data: "⚠️ Torrinha — No bank data found",
+    warning: `⚠️ Torrinha — No bank sync for ${daysSince} days`,
+    critical: `🚨 Torrinha — Bank sync broken (${daysSince} days)`,
+  };
+
+  const bodies: Record<string, string> = {
+    no_data: `No bank transactions have ever been received by the system.\n\nCheck:\n- Is the Zapier zap active?\n- Is Ponto connected to Crédito Agrícola?\n- Is the webhook URL correct?`,
+    warning: `The last bank transaction was synced ${daysSince} days ago (${lastSync?.toLocaleDateString()}).\n\nThis could mean:\n- Ponto's PSD2 consent has expired (re-link at myponto.com)\n- The Zapier zap is paused or erroring\n- No bank activity (unlikely for ${daysSince}+ days)\n\nCheck Zapier task history and Ponto connection status.`,
+    critical: `⚠️ It has been ${daysSince} days since the last bank sync (${lastSync?.toLocaleDateString()}).\n\nThe Ponto/Zapier connection is almost certainly broken. Payment matching is not working.\n\nActions needed:\n1. Log in to myponto.com — re-authorize Crédito Agrícola if consent expired\n2. Check Zapier — is the zap active? Any errors in task history?\n3. After fixing, replay recent Zapier runs to catch up\n\nThe system will continue sending payment reminders but cannot auto-match payments until this is resolved.`,
+  };
+
+  const from = process.env.PARKING_EMAIL || process.env.EMAIL_FROM || "parking@mail.torrinha149.com";
+  const { Resend } = await import("resend");
+  const resend = new Resend(process.env.RESEND_API_KEY);
+
+  const subject = subjects[level];
+  const body = bodies[level];
+
+  const { error } = await resend.emails.send({
+    from,
+    to: ownerEmail,
+    subject,
+    text: body,
+  });
+
+  if (error) {
+    console.error("[check-bank-health] Failed to send alert:", error);
+    return;
+  }
+
+  try {
+    await db.from("torrinha_email_log").insert({
+      tenant_id: null,
+      direction: "outbound",
+      template: "bank_health_alert",
+      to_email: ownerEmail,
+      from_email: from,
+      subject,
+      body,
+      metadata: { level, days_since: daysSince ?? null, last_sync: lastSync?.toISOString() ?? null },
+    });
+  } catch (err) {
+    console.error("[check-bank-health] Failed to log alert email:", err);
+  }
+}
+
+app.post("/cron/check-bank-health", requireCronSecret, async (_req, res) => {
+  try {
+    const db = supabase();
+
+    const { data: latest } = await db
+      .from("torrinha_transaction_log")
+      .select("received_at")
+      .eq("source", "zapier")
+      .order("received_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!latest) {
+      await sendBankHealthAlert("no_data");
+      return res.json({ ok: true, alert: "no_data" });
+    }
+
+    const lastSync = new Date(latest.received_at);
+    const now = new Date();
+    const daysSince = Math.floor((now.getTime() - lastSync.getTime()) / 86400000);
+
+    if (daysSince >= 7) {
+      await sendBankHealthAlert("critical", daysSince, lastSync);
+      return res.json({ ok: true, alert: "critical", days: daysSince });
+    }
+
+    if (daysSince >= 3) {
+      await sendBankHealthAlert("warning", daysSince, lastSync);
+      return res.json({ ok: true, alert: "warning", days: daysSince });
+    }
+
+    console.log(`[check-bank-health] OK — last sync ${daysSince} day(s) ago`);
+    res.json({ ok: true, alert: "none", days: daysSince });
+  } catch (err) {
+    console.error("[check-bank-health] Error:", err);
+    res.status(500).json({ error: "Failed to check bank health" });
+  }
+});
+
+// ============================================================
 // Start server
 // ============================================================
 
