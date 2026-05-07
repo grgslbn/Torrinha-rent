@@ -113,6 +113,26 @@ export async function processInboundEmail(payload: any) {
 
   const tenant = tenantRows?.[0] ?? null;
 
+  // If not matched by their own email, check if they're a known tenant contact
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let tenantFromContact: any = null;
+  if (!tenant) {
+    const { data: contactMatchRows } = await db
+      .from("torrinha_tenant_contacts")
+      .select("tenant_id, torrinha_tenants!inner(id, name, email, language, rent_eur, start_date, torrinha_spots!torrinha_spots_tenant_id_fkey(number, label))")
+      .ilike("email", fromEmail)
+      .limit(1);
+    if (contactMatchRows?.[0]) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const ct = (contactMatchRows[0] as any).torrinha_tenants;
+      tenantFromContact = ct ? (Array.isArray(ct) ? ct[0] : ct) : null;
+    }
+  }
+
+  // effectiveTenant is used for forwarding — either a direct match or via contacts
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const effectiveTenant: any = tenant ?? tenantFromContact;
+
   // If not a tenant, check waitlist
   let waitlistStatus: string | null = null;
   if (!tenant) {
@@ -543,6 +563,60 @@ Classification: ${claudeResult.classification} | Confidence: ${claudeResult.conf
 
 Review and reply: https://torrinha149.com/admin/inbox`,
     }).catch((e) => console.error("[email-agent] Owner inbox alert failed:", e));
+  }
+
+  // --- Forward tenant emails to owner ---
+  // Runs for all known tenants/contacts regardless of classification or auto-send.
+  if (effectiveTenant) {
+    const { data: fwdSettingsRows } = await db
+      .from("torrinha_settings")
+      .select("key, value")
+      .in("key", ["owner_cc_email", "owner_cc2_email", "owner_cc2_enabled"]);
+    const fwdCfg = Object.fromEntries((fwdSettingsRows ?? []).map((r: { key: string; value: unknown }) => [r.key, r.value]));
+
+    const fwdTargets: string[] = [];
+    if (typeof fwdCfg.owner_cc_email === "string" && fwdCfg.owner_cc_email) {
+      fwdTargets.push(fwdCfg.owner_cc_email);
+    }
+    if (fwdCfg.owner_cc2_enabled === true && typeof fwdCfg.owner_cc2_email === "string" && fwdCfg.owner_cc2_email) {
+      fwdTargets.push(fwdCfg.owner_cc2_email);
+    }
+
+    if (fwdTargets.length > 0) {
+      const spots = effectiveTenant.torrinha_spots as { number: number; label: string | null }[] | undefined;
+      const spotLabel = spots?.map((s) => s.label || String(s.number)).join(", ") || "—";
+      const receivedDate = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+
+      const fwdSubject = `[FWD] ${subject}`;
+      const fwdBody = [
+        "--- Forwarded tenant email ---",
+        `From: ${fromName} <${fromEmail}>`,
+        `Date: ${receivedDate}`,
+        `Tenant: ${effectiveTenant.name} (Spot ${spotLabel})`,
+        "---",
+        "",
+        bodyText || "(no body — Resend inbound webhooks do not include body text)",
+      ].join("\n");
+
+      for (const target of fwdTargets) {
+        try {
+          await resend.emails.send({ from: fromAddr, to: target, subject: fwdSubject, text: fwdBody });
+          await logEmail({
+            tenant_id: effectiveTenant.id,
+            direction: "outbound",
+            template: "tenant_forward",
+            to_email: target,
+            from_email: fromAddr,
+            subject: fwdSubject,
+            body: fwdBody,
+            metadata: { original_from: fromEmail, original_subject: subject },
+          });
+          console.log(`[email-agent] Forwarded tenant email from ${fromEmail} to ${target}`);
+        } catch (fwdErr) {
+          console.error(`[email-agent] Forward to ${target} failed:`, fwdErr);
+        }
+      }
+    }
   }
 
   console.log(`[email-agent] Processed: ${fromEmail} → ${claudeResult.classification} (${claudeResult.urgency})${shouldAutoSend ? " [auto-sent]" : ""}`);
