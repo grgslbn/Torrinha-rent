@@ -8,6 +8,49 @@ function supabase() {
   );
 }
 
+// --- Parking context cache ---
+
+const DEFAULT_PARKING_CONTEXT = `Location: Rua da Torrinha 149, Porto (Bonfim neighbourhood)
+Type: Private, covered, numbered underground parking
+Vehicle types accepted: Cars, motorbikes, and bicycles
+
+Pricing:
+- Car: €120/month
+- Motorbike: lower price, discuss case by case
+- Bicycle: lower price, discuss case by case
+- Remote control deposit: €50 (refundable on departure)
+
+Rental terms:
+- Long-term only — no short-term or temporary rentals
+- 30 days notice required from both parties to end contract
+- Payment monthly in advance via MBWay or bank transfer (IBAN)
+
+Community:
+- Small, friendly community — most tenants are friends-of-friends
+- We value good neighbours`;
+
+let _parkingCtx: string | null = null;
+let _parkingCtxAt = 0;
+const PC_TTL = 5 * 60 * 1000;
+
+async function getParkingContext(db: ReturnType<typeof supabase>): Promise<string> {
+  const now = Date.now();
+  if (_parkingCtx !== null && now - _parkingCtxAt < PC_TTL) return _parkingCtx;
+  try {
+    const { data } = await db
+      .from("torrinha_settings")
+      .select("value")
+      .eq("key", "parking_context")
+      .single();
+    const val = data?.value;
+    _parkingCtx = typeof val === "string" && val ? val : DEFAULT_PARKING_CONTEXT;
+  } catch {
+    _parkingCtx = _parkingCtx ?? DEFAULT_PARKING_CONTEXT;
+  }
+  _parkingCtxAt = Date.now();
+  return _parkingCtx!;
+}
+
 // --- Types ---
 
 export type TenantEmailContext = {
@@ -40,6 +83,7 @@ export type TenantEmailContext = {
   tenant_notes: string | null;
   licence_plates: string[];
   portal_url: string;
+  parking_context: string;
 };
 
 // --- System prompt ---
@@ -183,6 +227,9 @@ export async function assembleTenantContext(
     ? `${process.env.NEXT_PUBLIC_BASE_URL || "https://torrinha149.com"}/tenant/${tenant.access_token}`
     : "";
 
+  // Parking context (5-min TTL cache)
+  const parkingContext = await getParkingContext(db);
+
   // Current month payment amount
   const currentPayment = payments?.find((p) => p.month === month);
   const amountOwed = currentPayment ? Number(currentPayment.amount_eur) : 0;
@@ -202,6 +249,7 @@ export async function assembleTenantContext(
     tenant_notes: tenant.notes ?? null,
     licence_plates: (tenant.licence_plates as string[] | null) ?? [],
     portal_url: portalUrl,
+    parking_context: parkingContext,
   };
 }
 
@@ -248,6 +296,9 @@ ${contextLines || "  None"}
 
 Operational notes: ${context.tenant_notes || "none"}
 Licence plates: ${context.licence_plates.length ? context.licence_plates.join(", ") : "none"}
+
+Parking context (for reference if relevant):
+${context.parking_context}
 
 Write the email body now.`;
 

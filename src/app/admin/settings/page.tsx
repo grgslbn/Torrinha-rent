@@ -9,6 +9,7 @@ type Settings = {
   owner_cc2_enabled: boolean;
   owner_cc2_email: string;
   owner_cc2_mode: "cc" | "bcc";
+  parking_context: string;
 };
 
 export default function SettingsPage() {
@@ -19,6 +20,7 @@ export default function SettingsPage() {
     owner_cc2_enabled: false,
     owner_cc2_email: "",
     owner_cc2_mode: "bcc",
+    parking_context: "",
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -36,6 +38,7 @@ export default function SettingsPage() {
           owner_cc2_enabled: data.owner_cc2_enabled === true,
           owner_cc2_email: typeof data.owner_cc2_email === "string" ? data.owner_cc2_email : "",
           owner_cc2_mode: data.owner_cc2_mode === "cc" ? "cc" : "bcc",
+          parking_context: typeof data.parking_context === "string" ? data.parking_context : "",
         });
         setLoading(false);
       })
@@ -59,6 +62,7 @@ export default function SettingsPage() {
         owner_cc2_enabled: settings.owner_cc2_enabled,
         owner_cc2_email: settings.owner_cc2_email,
         owner_cc2_mode: settings.owner_cc2_mode,
+        parking_context: settings.parking_context,
       }),
     });
     setSaving(false);
@@ -190,6 +194,31 @@ export default function SettingsPage() {
               </label>
             ))}
           </div>
+        </div>
+      </section>
+
+      <section className="bg-t-surface border border-t-border rounded-[var(--t-radius-lg)] p-5 space-y-4 mt-5">
+        <h2 className="font-medium text-t-text">Parking context</h2>
+        <p className="text-sm text-t-text-muted">
+          Factual description of the parking — pricing, terms, community, waitlist. Injected into
+          the AI email agent system prompt. Behavioural and tone instructions are hardcoded.
+        </p>
+
+        <div>
+          <label className="block text-sm font-medium text-t-text-secondary mb-1">
+            Description
+          </label>
+          <textarea
+            value={settings.parking_context}
+            onChange={(e) =>
+              setSettings((s) => ({ ...s, parking_context: e.target.value }))
+            }
+            rows={14}
+            className="w-full border border-t-border rounded-[var(--t-radius-sm)] px-3 py-1.5 text-sm resize-y"
+          />
+          <p className="text-xs text-t-text-muted mt-1 text-right">
+            {settings.parking_context.length} characters
+          </p>
         </div>
       </section>
 

@@ -2,16 +2,11 @@ import { createClient } from "@supabase/supabase-js";
 import Anthropic from "@anthropic-ai/sdk";
 import { logEmail } from "./email";
 
-// --- Parking info (update here when pricing or conditions change) ---
+// --- Parking context (factual details editable via /admin/settings) ---
 
-function buildParkingInfo(availabilityStatus: string): string {
-  return `
-PARKING DETAILS — Torrinha 149, Porto
-
-Location: Rua da Torrinha 149, Porto (Bonfim neighbourhood)
+const DEFAULT_PARKING_CONTEXT = `Location: Rua da Torrinha 149, Porto (Bonfim neighbourhood)
 Type: Private, covered, numbered underground parking
 Vehicle types accepted: Cars, motorbikes, and bicycles
-Availability: ${availabilityStatus}
 
 Pricing:
 - Car: €120/month
@@ -31,11 +26,31 @@ Community:
 Waitlist:
 - If no spots available, invite them to join: https://torrinha149.com
 - Collect via conversation: name, email, phone, vehicle type, preferred start date
-- Once all collected, add to torrinha_waitlist automatically
+- Once all collected, add to torrinha_waitlist automatically`;
 
-Tone: Very warm and friendly, like a helpful neighbour. Never corporate.
-Sign off: Dulcineia & Georges
-`.trim();
+let _parkingContext: string | null = null;
+let _parkingContextAt = 0;
+const PARKING_CONTEXT_TTL = 5 * 60 * 1000;
+
+async function getParkingContext(): Promise<string> {
+  const now = Date.now();
+  if (_parkingContext !== null && now - _parkingContextAt < PARKING_CONTEXT_TTL) {
+    return _parkingContext;
+  }
+  try {
+    const db = supabase();
+    const { data } = await db
+      .from("torrinha_settings")
+      .select("value")
+      .eq("key", "parking_context")
+      .single();
+    const val = data?.value;
+    _parkingContext = typeof val === "string" && val ? val : DEFAULT_PARKING_CONTEXT;
+  } catch {
+    _parkingContext = _parkingContext ?? DEFAULT_PARKING_CONTEXT;
+  }
+  _parkingContextAt = Date.now();
+  return _parkingContext!;
 }
 
 function supabase() {
@@ -208,7 +223,8 @@ export async function processInboundEmail(payload: any) {
       ? "All spots currently occupied — waitlist only"
       : `${vacantCount} spot(s) currently available`;
 
-  const parkingInfoText = buildParkingInfo(availabilityStatus);
+  const parkingContext = await getParkingContext();
+  const parkingInfoText = `PARKING DETAILS — Torrinha 149, Porto\n\nAvailability: ${availabilityStatus}\n\n${parkingContext}`;
 
   // --- Fetch thread history for multi-turn context ---
   let threadHistory: { from_email: string; body_text: string; draft_body: string | null; received_at: string }[] = [];
