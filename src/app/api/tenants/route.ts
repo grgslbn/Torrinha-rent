@@ -72,6 +72,7 @@ export async function POST(request: NextRequest) {
       notes: notes || null,
       status,
       active: status === "active",
+      access_token: crypto.randomUUID(),
     })
     .select()
     .single();
