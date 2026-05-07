@@ -53,10 +53,22 @@ export default function ContextSection({
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const fetchEntries = useCallback(async () => {
-    const res = await fetch(`/api/tenant-context?tenant_id=${tenant.id}`);
-    if (res.ok) setEntries(await res.json());
-    setLoading(false);
-  }, [tenant.id]);
+    setLoading(true);
+    setEntries([]);
+    try {
+      const res = await fetch(`/api/tenant-context?tenant_id=${tenant.id}`);
+      if (res.ok) {
+        setEntries(await res.json());
+      } else {
+        const d = await res.json().catch(() => ({}));
+        onError(d.error || `Failed to load context (${res.status})`);
+      }
+    } catch {
+      onError("Failed to load context entries");
+    } finally {
+      setLoading(false);
+    }
+  }, [tenant.id, onError]);
 
   useEffect(() => { fetchEntries(); }, [fetchEntries]);
 
