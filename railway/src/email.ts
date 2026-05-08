@@ -179,7 +179,7 @@ async function sendEmail(
     const approvalUrl = `https://torrinha149.com/api/email-approve?token=${approvalToken}`;
     actualTo = ownerEmail;
     actualSubject = `[DRY RUN] ${subject}`;
-    actualText = `[This email would have been sent to: ${to}]\n[✅ Click to approve and send → ${approvalUrl}]\n\n${text}`;
+    actualText = `[This email would have been sent to: ${to}]\n\n✅ Approve and send → ${approvalUrl}\n\n---\n\n${text}`;
     console.log(`[dry-run] Redirecting email from ${to} → ${ownerEmail}`);
   }
 
