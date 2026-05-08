@@ -144,6 +144,7 @@ export default function PaymentsClient() {
 
   // Shared state
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [reminderCounts, setReminderCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [sortKey, setSortKey] = useState<SortKey>("spot");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
@@ -178,8 +179,13 @@ export default function PaymentsClient() {
       viewMode === "month"
         ? `/api/payments?month=${month}`
         : `/api/payments?from=${rangeFrom}&to=${rangeTo}`;
-    const res = await fetch(url);
+    const [res, rcRes] = await Promise.all([
+      fetch(url),
+      viewMode === "month" ? fetch(`/api/reminder-counts?month=${month}`) : null,
+    ]);
     if (res.ok) setPayments(await res.json());
+    if (rcRes?.ok) setReminderCounts(await rcRes.json());
+    else if (!rcRes) setReminderCounts({});
     setLoading(false);
   }, [viewMode, month, rangeFrom, rangeTo]);
 
@@ -515,6 +521,11 @@ export default function PaymentsClient() {
                   >
                     Status{sortIndicator("status")}
                   </th>
+                  {viewMode === "month" && (
+                    <th className="px-4 py-3 text-left text-xs font-medium text-t-text-muted uppercase">
+                      Reminders
+                    </th>
+                  )}
                   <th
                     className="px-4 py-3 text-left text-xs font-medium text-t-text-muted uppercase cursor-pointer hover:text-t-text"
                     onClick={() => toggleSort("paid_date")}
@@ -567,6 +578,13 @@ export default function PaymentsClient() {
                           {p.status}
                         </span>
                       </td>
+                      {viewMode === "month" && (
+                        <td className="px-4 py-3 text-sm text-t-text-muted">
+                          {t && (reminderCounts[t.id] ?? 0) > 0
+                            ? reminderCounts[t.id]
+                            : "—"}
+                        </td>
+                      )}
                       <td className="px-4 py-3 text-sm text-t-text-muted">
                         {p.paid_date ?? "—"}
                       </td>
@@ -613,6 +631,7 @@ export default function PaymentsClient() {
                     >
                       &euro;{totalOutstanding.toFixed(2)} outstanding
                     </td>
+                    {viewMode === "month" && <td />}
                     <td
                       colSpan={viewMode === "month" ? 2 : 1}
                     />
