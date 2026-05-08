@@ -9,39 +9,63 @@ type Props = {
   contactEmail: string;
 };
 
+const IconCar = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7 text-t-accent mx-auto">
+    <path d="M5 17H3v-5l2.5-6h13l2.5 6v5h-2" />
+    <circle cx="7.5" cy="17.5" r="1.5" />
+    <circle cx="16.5" cy="17.5" r="1.5" />
+    <path d="M5 12h14" />
+  </svg>
+);
+
+const IconCalendar = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7 text-t-accent mx-auto">
+    <rect x="3" y="4" width="18" height="18" rx="2" />
+    <path d="M16 2v4M8 2v4M3 10h18" />
+    <path d="M8 14h2M14 14h2M8 18h2" />
+  </svg>
+);
+
+const IconShield = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7 text-t-accent mx-auto">
+    <path d="M12 2l8 3.5v6C20 16.5 16.5 21 12 22 7.5 21 4 16.5 4 11.5v-6L12 2z" />
+    <path d="M9 12l2 2 4-4" />
+  </svg>
+);
+
 const INFO_CARDS_PT = [
   {
-    icon: "🔒",
-    title: "Acesso seguro 24/7",
-    body: "Portão automático com código pessoal. Entrada e saída a qualquer hora.",
+    Icon: IconCar,
+    title: "Lugar individual",
+    body: "Acesso 24h, portão automático",
   },
   {
-    icon: "☂️",
-    title: "Coberto e protegido",
-    body: "Parque coberto, longe da chuva e do sol. O seu carro fica sempre em segurança.",
+    Icon: IconCalendar,
+    title: "Aluguer mensal",
+    body: "Longa duração, sem fidelização",
   },
   {
-    icon: "📍",
-    title: "Centro do Porto",
-    body: "A 5 minutos a pé do Mercado do Bolhão e do Metro da Trindade.",
+    Icon: IconShield,
+    title: "Seguro e fechado",
+    body: "Armazém com porta privada",
   },
 ];
 
 const INFO_CARDS_EN = [
   {
-    icon: "🔒",
-    title: "Secure access 24/7",
-    body: "Automatic gate with personal code. Enter and exit at any time.",
+    Icon: IconCar,
+    title: "Individual spot",
+    body: "24h access, automatic gate",
   },
   {
-    icon: "☂️",
-    title: "Covered & protected",
-    body: "Indoor parking, sheltered from rain and sun. Your car stays safe.",
+    Icon: IconCalendar,
+    title: "Monthly rental",
+    body: "Long-term, no commitment",
   },
   {
-    icon: "📍",
-    title: "Central Porto",
-    body: "5 minutes on foot from Mercado do Bolhão and Metro Trindade.",
+    Icon: IconShield,
+    title: "Secure & enclosed",
+    body: "Storage unit with private door",
   },
 ];
 
@@ -204,7 +228,7 @@ export default function WaitlistForm({
               key={card.title}
               className="bg-t-surface border border-t-border rounded-[var(--t-radius-lg)] p-4 text-center"
             >
-              <div className="text-2xl mb-2">{card.icon}</div>
+              <div className="mb-2"><card.Icon /></div>
               <p className="text-xs font-semibold text-t-text mb-1">{card.title}</p>
               <p className="text-xs text-t-text-muted leading-snug">{card.body}</p>
             </div>
