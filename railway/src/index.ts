@@ -34,6 +34,12 @@ function currentMonthStr() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
+function nextMonthStr() {
+  const now = new Date();
+  const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}`;
+}
+
 function today() {
   return new Date().toISOString().split("T")[0];
 }
@@ -91,48 +97,97 @@ async function aiMatch(
   counterpart: string | null,
   communication: string | null,
   counterpartReference: string | null,
-  enriched: EnrichedPayment[]
+  enriched: EnrichedPayment[],
+  db: DbClient,
+  executionDate: string
 ): Promise<{ payment: EnrichedPayment; confidence: string; reason: string } | null> {
   try {
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-    const tenantBlocks = enriched.map((p) => {
-      const lines = [
-        `Tenant: ${p.tenant_name} (payment_id: ${p.id})`,
-        `  Rent: €${p.amount_eur}, Month: ${p.month}, Spots: ${p.spots.join(", ") || "—"}`,
-      ];
-      if (p.contact_names.length) lines.push(`  Contacts: ${p.contact_names.join(", ")}`);
-      if (p.known_names.length) lines.push(`  Known names: ${p.known_names.join(", ")}`);
-      if (p.known_ibans.length) lines.push(`  Known IBANs: ${p.known_ibans.join(", ")}`);
-      if (p.notes) lines.push(`  Notes: ${p.notes}`);
-      for (const c of p.context_entries) lines.push(`  Context [${c.type}]: ${c.content}`);
-      return lines.join("\n");
-    }).join("\n\n");
+    const candidateTenantIds = [...new Set(enriched.map((p) => p.tenant_id))];
 
-    const prompt = `You are matching a single bank transaction to a parking rental payment for Torrinha Parking.
+    const [{ data: historyRows }, { data: allInsightRows }] = await Promise.all([
+      db.from("torrinha_payments")
+        .select("tenant_id, month, status, paid_date, amount_eur")
+        .in("tenant_id", candidateTenantIds)
+        .order("month", { ascending: false })
+        .limit(200),
+      db.from("torrinha_tenant_insights")
+        .select("tenant_id, key, value")
+        .in("tenant_id", candidateTenantIds),
+    ]);
 
-TRANSACTION:
-- Amount: €${amount}
-- Counterpart name: ${counterpart || "unknown"}
-- Remittance information: ${communication || "none"}
-- Counterpart IBAN: ${counterpartReference || "unknown"}
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const profiles = enriched.map((p) => {
+      const history = (historyRows ?? []).filter((h: any) => h.tenant_id === p.tenant_id);
+      const insights = (allInsightRows ?? []).filter((i: any) => i.tenant_id === p.tenant_id);
 
-PENDING PAYMENTS:
-${tenantBlocks}
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const paidHistory = history.filter((h: any) => h.status === "paid" && h.paid_date);
+      const avgPayDay = paidHistory.length
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ? Math.round(paidHistory.reduce((s: number, h: any) => s + new Date(h.paid_date).getDate(), 0) / paidHistory.length)
+        : null;
 
-Match the transaction to one of the pending payments. Amount must be within €5. Use all available context: name variants, known IBANs, contacts who pay on behalf, and operational notes. Remittance info may contain a spot number or name.
+      return {
+        payment_id: p.id,
+        tenant_name: p.tenant_name,
+        month: p.month,
+        expected_amount: p.amount_eur,
+        spots: p.spots,
+        contacts: p.contact_names,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        known_names: [...new Set([...p.known_names, ...insights.filter((i: any) => i.key === "known_name").map((i: any) => i.value)])],
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        known_ibans: [...new Set([...p.known_ibans, ...insights.filter((i: any) => i.key === "iban").map((i: any) => i.value)])],
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        typical_pay_day: insights.find((i: any) => i.key === "typical_pay_day")?.value ?? null,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        pays_early: insights.find((i: any) => i.key === "pays_early")?.value === "true",
+        avg_pay_day: avgPayDay,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        recent_history: history.slice(0, 6).map((h: any) => `${h.month}: ${h.status}${h.paid_date ? ` (paid ${h.paid_date})` : ""}`),
+        notes: p.notes,
+        context_entries: p.context_entries,
+      };
+    });
 
-Respond ONLY with a JSON object (no markdown, no explanation):
+    const systemPrompt = `You are matching a single bank transaction to parking rental payments for Torrinha Parking in Porto.
+You have access to each tenant's behavioural profile including their payment history, typical pay day, known account names, and owner notes. Use this context to make informed matching decisions.
+
+Key patterns to consider:
+- Some tenants pay at the end of the previous month (early payers — pays_early: true)
+- Some tenants occasionally pay two months in one transfer (amount would be ~2× the expected)
+- Account names may differ from tenant names (partners, companies, parents)
+- The transaction date relative to the payment month matters
+- If pays_early is true and transaction date is before the payment month, this is expected behaviour
+
+Respond ONLY with a JSON object (no markdown):
 {"payment_id":"...","confidence":"high"|"medium"|"low","reason":"..."}
+Or if no match: null
 
-Or respond with: null
+Confidence guide:
+- high: IBAN or name match + amount match + pattern consistent with history
+- medium: plausible match but one signal is ambiguous (e.g. amount is double expected, or name is a partial match)
+- low: speculative`;
 
-If no payment is a plausible match, respond with null.`;
+    const userPrompt = `TRANSACTION:
+Amount: €${amount}
+Counterparty: ${counterpart ?? "unknown"}
+IBAN: ${counterpartReference ?? "unknown"}
+Description: ${communication ?? "none"}
+Date: ${executionDate}
+
+CANDIDATE TENANTS WITH PENDING PAYMENTS:
+${JSON.stringify(profiles, null, 2)}
+
+Which payment does this transaction belong to?`;
 
     const response = await anthropic.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 256,
-      messages: [{ role: "user", content: prompt }],
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 300,
+      system: systemPrompt,
+      messages: [{ role: "user", content: userPrompt }],
     });
 
     const text = response.content[0].type === "text" ? response.content[0].text.trim() : "";
@@ -145,8 +200,8 @@ If no payment is a plausible match, respond with null.`;
     const payment = enriched.find((p) => p.id === parsed.payment_id);
     if (!payment) return null;
 
-    // Sanity-check: Claude could hallucinate a payment_id with the wrong amount
-    if (Math.abs(payment.amount_eur - amount) > 5) return null;
+    // Sanity-check: reject if amount is more than €5 off (unless double-payment medium confidence)
+    if (Math.abs(payment.amount_eur - amount) > 5 && parsed.confidence === "high") return null;
 
     return { payment, confidence: parsed.confidence, reason: parsed.reason };
   } catch {
@@ -160,7 +215,8 @@ async function findMatch(
   counterpartReference: string | null,
   communication: string | null,
   enriched: EnrichedPayment[],
-  db: DbClient
+  db: DbClient,
+  executionDate: string
 ): Promise<MatchOutcome> {
   // Tier 1: IBAN match — highest confidence
   if (counterpartReference) {
@@ -204,7 +260,7 @@ async function findMatch(
   }
 
   // Tier 2.5: Claude AI match
-  const aiResult = await aiMatch(amount, counterpart, communication, counterpartReference, enriched);
+  const aiResult = await aiMatch(amount, counterpart, communication, counterpartReference, enriched, db, executionDate);
   if (aiResult) {
     if (aiResult.confidence === "high") {
       return { matched: true, payment: aiResult.payment, method: "ai_match" };
@@ -234,7 +290,9 @@ async function learnFromMatch(
   counterpart: string | null,
   counterpartReference: string | null,
   method: string,
-  db: DbClient
+  db: DbClient,
+  executionDate?: string,
+  matchedMonth?: string
 ) {
   if (counterpartReference) {
     try {
@@ -242,7 +300,7 @@ async function learnFromMatch(
         { tenant_id: tenantId, key: "iban", value: counterpartReference, source: method },
         { onConflict: "key,value", ignoreDuplicates: true }
       );
-    } catch { /* insights table may not exist yet */ }
+    } catch { /* ignore */ }
   }
 
   if (counterpart) {
@@ -264,7 +322,51 @@ async function learnFromMatch(
           source: method,
         });
       }
-    } catch { /* insights table may not exist yet */ }
+    } catch { /* ignore */ }
+  }
+
+  if (executionDate) {
+    try {
+      const payDay = new Date(executionDate).getDate();
+      const { data: existingDay } = await db
+        .from("torrinha_tenant_insights")
+        .select("id")
+        .eq("tenant_id", tenantId)
+        .eq("key", "typical_pay_day")
+        .maybeSingle();
+
+      if (existingDay) {
+        await db.from("torrinha_tenant_insights")
+          .update({ value: String(payDay), source: method })
+          .eq("id", existingDay.id);
+      } else {
+        await db.from("torrinha_tenant_insights").insert({
+          tenant_id: tenantId, key: "typical_pay_day", value: String(payDay), source: method,
+        });
+      }
+    } catch { /* ignore */ }
+
+    if (matchedMonth) {
+      try {
+        const [payYear, payMonth] = matchedMonth.split("-").map(Number);
+        const monthStart = new Date(payYear, payMonth - 1, 1);
+        const payDate = new Date(executionDate);
+        if (payDate < monthStart) {
+          const { data: existingEarly } = await db
+            .from("torrinha_tenant_insights")
+            .select("id")
+            .eq("tenant_id", tenantId)
+            .eq("key", "pays_early")
+            .maybeSingle();
+
+          if (!existingEarly) {
+            await db.from("torrinha_tenant_insights").insert({
+              tenant_id: tenantId, key: "pays_early", value: "true", source: method,
+            });
+          }
+        }
+      } catch { /* ignore */ }
+    }
   }
 }
 
@@ -290,9 +392,10 @@ app.post("/webhooks/zapier", async (req, res) => {
     // Zapier may send a single transaction or an array
     const transactions = Array.isArray(payload) ? payload : [payload];
     const db = supabase();
-    const month = currentMonthStr();
+    const currentMonth = currentMonthStr();
+    const nextMonth = nextMonthStr();
 
-    // Fetch pending payments with contact names and spots for matching
+    // Fetch pending payments for current AND next month (handles early payers)
     const { data: rawPayments } = await db
       .from("torrinha_payments")
       .select(`
@@ -302,7 +405,7 @@ app.post("/webhooks/zapier", async (req, res) => {
           torrinha_spots!torrinha_spots_tenant_id_fkey ( number, label )
         )
       `)
-      .eq("month", month)
+      .in("month", [currentMonth, nextMonth])
       .in("status", ["pending", "overdue"]);
 
     // Fetch known name variants and IBANs for all tenants
@@ -353,6 +456,13 @@ app.post("/webhooks/zapier", async (req, res) => {
             content: c.content,
           })),
       };
+    });
+
+    // Current-month rows come first so deterministic tiers prefer them over next-month rows
+    enriched.sort((a, b) => {
+      if (a.month === currentMonth && b.month !== currentMonth) return -1;
+      if (a.month !== currentMonth && b.month === currentMonth) return 1;
+      return 0;
     });
 
     let matched = 0;
@@ -442,7 +552,7 @@ app.post("/webhooks/zapier", async (req, res) => {
       }
 
       // Four-tier match: IBAN → Name → AI → Amount-only
-      const outcome = await findMatch(amount, counterpart, counterpartReference, communication, enriched, db);
+      const outcome = await findMatch(amount, counterpart, counterpartReference, communication, enriched, db, executionDate);
 
       if (outcome.matched) {
         const { payment, method } = outcome;
@@ -469,7 +579,7 @@ app.post("/webhooks/zapier", async (req, res) => {
 
         await sendThankYouEmail(
           { id: payment.tenant_id, name: payment.tenant_name, email: payment.tenant_email, language: payment.tenant_language },
-          { month, amount_eur: amount },
+          { month: payment.month, amount_eur: amount },
           extraCc
         );
 
@@ -477,8 +587,8 @@ app.post("/webhooks/zapier", async (req, res) => {
           .update({ thankyou_sent_at: new Date().toISOString() })
           .eq("id", payment.id);
 
-        // Store IBAN + name variant for future matches
-        await learnFromMatch(payment.tenant_id, counterpart, counterpartReference, method, db);
+        // Store IBAN + name variant + behavioural insights for future matches
+        await learnFromMatch(payment.tenant_id, counterpart, counterpartReference, method, db, executionDate, payment.month);
 
         try {
           await db.from("torrinha_transaction_log").insert({
@@ -606,6 +716,73 @@ app.post("/cron/reset-month", requireCronSecret, async (_req, res) => {
   } catch (err) {
     console.error("[reset-month] Error:", err);
     res.status(500).json({ error: "Failed to reset month" });
+  }
+});
+
+// ============================================================
+// POST /cron/prepare-next-month — pre-create next month's pending rows (26th)
+// Ensures early payers can be matched by the Zapier webhook before the 1st.
+// The reset-month cron on the 1st skips tenants who already have rows.
+// ============================================================
+
+app.post("/cron/prepare-next-month", requireCronSecret, async (_req, res) => {
+  try {
+    const db = supabase();
+    const month = nextMonthStr();
+
+    const [year, mo] = month.split("-").map(Number);
+    const firstDay = `${month}-01`;
+    const lastDay = new Date(year, mo, 0).toISOString().split("T")[0];
+
+    const { data: assignments } = await db
+      .from("torrinha_spot_assignments")
+      .select("tenant_id, torrinha_tenants(id, rent_eur, status)")
+      .lte("start_date", lastDay)
+      .or(`end_date.is.null,end_date.gt.${firstDay}`);
+
+    if (!assignments || assignments.length === 0) {
+      res.json({ message: "No assignments for next month", created: 0 });
+      return;
+    }
+
+    const tenantMap = new Map<string, number>();
+    for (const a of assignments) {
+      const t = Array.isArray(a.torrinha_tenants) ? a.torrinha_tenants[0] : a.torrinha_tenants;
+      const tenant = t as { id: string; rent_eur: number; status: string } | null;
+      if (tenant && (tenant.status === "active" || tenant.status === "upcoming") && !tenantMap.has(tenant.id)) {
+        tenantMap.set(tenant.id, Number(tenant.rent_eur));
+      }
+    }
+
+    const { data: existing } = await db
+      .from("torrinha_payments")
+      .select("tenant_id")
+      .eq("month", month);
+
+    const existingSet = new Set(existing?.map((e) => e.tenant_id) ?? []);
+
+    const toInsert = [...tenantMap.entries()]
+      .filter(([id]) => !existingSet.has(id))
+      .map(([id, rent_eur]) => ({
+        tenant_id: id,
+        month,
+        status: "pending",
+        amount_eur: rent_eur,
+      }));
+
+    if (toInsert.length === 0) {
+      res.json({ message: "Next month rows already exist", created: 0 });
+      return;
+    }
+
+    const { error } = await db.from("torrinha_payments").insert(toInsert);
+    if (error) throw error;
+
+    console.log(`[prepare-next-month] Created ${toInsert.length} payment rows for ${month}`);
+    res.json({ created: toInsert.length, month });
+  } catch (err) {
+    console.error("[prepare-next-month] Error:", err);
+    res.status(500).json({ error: "Failed to prepare next month" });
   }
 });
 
