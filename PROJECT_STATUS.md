@@ -2,7 +2,7 @@
 
 <!-- STATUS:START -->
 ## Live status (auto-updated on every push)
-**Last updated:** 2026-05-08 10:13 UTC
+**Last updated:** 2026-05-08 17:30 UTC
 
 | Metric | Value |
 |---|---|
@@ -10,15 +10,15 @@
 | Upcoming tenants | 0 |
 | Inactive tenants | 2 |
 | Total spots | 17 |
-| 2026-05 paid | 5 |
-| 2026-05 pending | 8 |
+| 2026-05 paid | 6 |
+| 2026-05 pending | 7 |
 | 2026-05 overdue | 0 |
 | Waitlist (waiting) | 27 |
 | Unmatched transactions | 3 |
-| Inbox pending | 0 |
-| Email log entries | 15 |
+| Inbox pending | 1 |
+| Email log entries | 21 |
 | Tenant context entries | 39 |
-| Last payment received | 2026-05-05 |
+| Last payment received | 2026-05-08 |
 <!-- STATUS:END -->
 
 ---
@@ -48,14 +48,14 @@
 | torrinha_remotes | Remote controls + deposits | 0 |
 | torrinha_waitlist | Public waitlist signups | 27 |
 | torrinha_unmatched_transactions | Bank transactions pending review | 3 |
-| torrinha_inbox | Inbound emails + Claude draft replies | 1 |
+| torrinha_inbox | Inbound emails + Claude draft replies | 4 |
 | torrinha_email_templates | Editable email templates (PT/EN) | 8 |
-| torrinha_email_log | All email communications (inbound + outbound) | 15 |
+| torrinha_email_log | All email communications (inbound + outbound) | 21 |
 | torrinha_tenant_contacts | Additional contacts per tenant | 0 |
 | torrinha_tenant_context | Rich context per tenant (relationship notes, pasted emails, agreements) | 39 |
 | torrinha_settings | System settings (key-value store) | 7 |
 | torrinha_gc_tokens | GoCardless API token storage | 0 |
-| torrinha_transaction_log | Full bank transaction log for audit | 15 |
+| torrinha_transaction_log | Full bank transaction log for audit | 16 |
 
 ---
 
