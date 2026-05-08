@@ -96,11 +96,11 @@ export default async function TenantPortalPage({
     .order("month", { ascending: false });
 
   const payments = (paymentsData ?? []) as PaymentRow[];
-  const paidPayments = payments.filter((p) => p.status === "paid");
-  const monthsPaid = paidPayments.length;
-  const totalPaid = paidPayments.reduce(
-    (s, p) => s + Number(p.amount_eur ?? 0),
-    0
+
+  const now = new Date();
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const missedMonths = payments.filter(
+    (p) => p.month < currentMonth && p.status !== "paid"
   );
 
   const spotsDisplay = tenant.torrinha_spots
@@ -118,9 +118,6 @@ export default async function TenantPortalPage({
     rent: isPt ? "Renda mensal" : "Monthly rent",
     since: isPt ? "Inquilino desde" : "Tenant since",
     history: isPt ? "Histórico de pagamentos" : "Payment history",
-    summary: isPt ? "Resumo" : "Summary",
-    monthsPaidLabel: isPt ? "Meses pagos" : "Months paid",
-    totalPaidLabel: isPt ? "Total pago" : "Total paid",
     contact: isPt ? "Questões? Contacte" : "Questions? Contact",
     cMonth: isPt ? "Mês" : "Month",
     cStatus: isPt ? "Estado" : "Status",
@@ -177,28 +174,20 @@ export default async function TenantPortalPage({
           </div>
         </div>
 
-        {/* Summary card */}
-        <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">
-            {t.summary}
-          </h2>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide">
-                {t.monthsPaidLabel}
-              </p>
-              <p className="text-2xl font-bold text-green-700">{monthsPaid}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide">
-                {t.totalPaidLabel}
-              </p>
-              <p className="text-2xl font-bold text-green-700">
-                €{totalPaid.toFixed(2)}
-              </p>
-            </div>
+        {/* Payment standing */}
+        {missedMonths.length > 0 ? (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg px-5 py-4 mb-6 text-sm text-amber-700">
+            {isPt
+              ? `Parece que ${missedMonths.length} ${missedMonths.length === 1 ? "mês anterior ainda está" : "meses anteriores ainda estão"} em aberto. Por favor verifica na tabela abaixo.`
+              : `It looks like ${missedMonths.length} previous month${missedMonths.length === 1 ? "" : "s"} may still be open. Please check the table below.`}
           </div>
-        </div>
+        ) : (
+          <div className="bg-green-50 border border-green-200 rounded-lg px-5 py-4 mb-6 text-sm text-green-700">
+            {isPt
+              ? "Todos os pagamentos anteriores estão em dia. Obrigado!"
+              : "All previous payments are up to date. Thank you!"}
+          </div>
+        )}
 
         {/* Payment history */}
         <div className="bg-white rounded-lg shadow overflow-hidden mb-6">
