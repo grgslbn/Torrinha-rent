@@ -2,7 +2,7 @@
 
 <!-- STATUS:START -->
 ## Live status (auto-updated on every push)
-**Last updated:** 2026-05-09 06:58 UTC
+**Last updated:** 2026-05-09 07:38 UTC
 
 | Metric | Value |
 |---|---|
@@ -16,7 +16,7 @@
 | Waitlist (waiting) | 27 |
 | Unmatched transactions | 4 |
 | Inbox pending | 0 |
-| Email log entries | 26 |
+| Email log entries | 27 |
 | Tenant context entries | 39 |
 | Last payment received | 2026-05-08 |
 <!-- STATUS:END -->
@@ -48,9 +48,9 @@
 | torrinha_remotes | Remote controls + deposits | 0 |
 | torrinha_waitlist | Public waitlist signups | 27 |
 | torrinha_unmatched_transactions | Bank transactions pending review | 4 |
-| torrinha_inbox | Inbound emails + Claude draft replies | 5 |
+| torrinha_inbox | Inbound emails + Claude draft replies | 6 |
 | torrinha_email_templates | Editable email templates (PT/EN) | 8 |
-| torrinha_email_log | All email communications (inbound + outbound) | 26 |
+| torrinha_email_log | All email communications (inbound + outbound) | 27 |
 | torrinha_tenant_contacts | Additional contacts per tenant | 0 |
 | torrinha_tenant_context | Rich context per tenant (relationship notes, pasted emails, agreements) | 39 |
 | torrinha_settings | System settings (key-value store) | 7 |
