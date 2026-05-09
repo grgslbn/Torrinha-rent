@@ -1107,10 +1107,18 @@ app.post("/webhooks/email-inbound-postmark", async (req, res) => {
     );
     const inReplyTo: string = inReplyToHeader?.Value || payload.ReplyTo || "";
 
+    // Parse attachments — filter to max 10 MB per file
+    type RawAttachment = { Name: string; Content: string; ContentType: string; ContentLength: number };
+    const rawAttachments: RawAttachment[] = payload.Attachments || [];
+    const validAttachments = rawAttachments.filter(
+      (a) => a.ContentLength <= 10 * 1024 * 1024 && a.Content && a.Name
+    );
+
     console.log("[postmark-inbound] Received:", {
       from: fromEmail,
       subject,
       body_length: bodyText.length,
+      attachments: validAttachments.length,
     });
 
     const agentPayload = {
@@ -1123,9 +1131,64 @@ app.post("/webhooks/email-inbound-postmark", async (req, res) => {
       message_id: messageId,
       in_reply_to: inReplyTo,
       references: "",
+      attachments: validAttachments.map((a) => ({
+        name: a.Name,
+        content_type: a.ContentType,
+        size_bytes: a.ContentLength,
+      })),
     };
 
     const result = await processInboundEmail(agentPayload);
+
+    // Upload attachments to Supabase Storage and update inbox row
+    if (validAttachments.length > 0 && result?.id) {
+      const db = supabase();
+      const attachmentMeta: { filename: string; content_type: string; size_bytes: number; storage_path: string }[] = [];
+
+      for (const att of validAttachments) {
+        const storagePath = `${result.id}/${att.Name}`;
+        const buffer = Buffer.from(att.Content, "base64");
+
+        const { error: uploadError } = await db.storage
+          .from("inbox-attachments")
+          .upload(storagePath, buffer, { contentType: att.ContentType, upsert: false });
+
+        if (!uploadError) {
+          attachmentMeta.push({
+            filename: att.Name,
+            content_type: att.ContentType,
+            size_bytes: att.ContentLength,
+            storage_path: storagePath,
+          });
+        } else {
+          console.error(`[postmark-inbound] Attachment upload failed: ${att.Name}`, uploadError);
+        }
+      }
+
+      if (attachmentMeta.length > 0) {
+        await db.from("torrinha_inbox").update({ attachments: attachmentMeta }).eq("id", result.id);
+
+        // Notify owner
+        const fileList = attachmentMeta
+          .map((a) => `• ${a.filename} (${(a.size_bytes / 1024).toFixed(0)} KB)`)
+          .join("\n");
+        const ownerEmail = process.env.OWNER_EMAIL;
+        const fromAddr = process.env.PARKING_EMAIL || process.env.EMAIL_FROM || "parking@mail.torrinha149.com";
+        if (ownerEmail) {
+          const { Resend } = await import("resend");
+          const resend = new Resend(process.env.RESEND_API_KEY);
+          await resend.emails.send({
+            from: fromAddr,
+            to: ownerEmail,
+            subject: `Torrinha Inbox — ${attachmentMeta.length} attachment(s) from ${fromName || fromEmail}`,
+            text: `An email from ${fromName} <${fromEmail}> included ${attachmentMeta.length} attachment(s):\n\n${fileList}\n\nSubject: ${subject}\n\nView in inbox: https://torrinha149.com/admin/inbox`,
+          });
+        }
+
+        console.log(`[postmark-inbound] Stored ${attachmentMeta.length} attachment(s) for inbox ${result.id}`);
+      }
+    }
+
     res.json({ ok: true, id: result?.id });
   } catch (err) {
     console.error("[postmark-inbound] Error:", err);

@@ -340,10 +340,15 @@ No prose, no markdown — ONLY the JSON object.`;
           .join("\n\n")}`
       : "";
 
+  const attachments: { name: string; content_type: string; size_bytes: number }[] = (payload as any).attachments || [];
+  const attachmentNote = attachments.length > 0
+    ? `\n\nAttachments: ${attachments.map((a) => `${a.name} (${a.content_type}, ${(a.size_bytes / 1024).toFixed(0)} KB)`).join(", ")}`
+    : "";
+
   const userPrompt = `Inbound email:
 From: ${fromName} <${fromEmail}>
 Subject: ${subject}
-Body: ${bodyText || "(not available — classify based on subject and sender context)"}
+Body: ${bodyText || "(not available — classify based on subject and sender context)"}${attachmentNote}
 
 Sender context:
 ${JSON.stringify(senderContext, null, 2)}${historyBlock}`;

@@ -2,6 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+type Attachment = {
+  filename: string;
+  content_type: string;
+  size_bytes: number;
+  storage_path: string;
+};
+
 type InboxItem = {
   id: string;
   received_at: string;
@@ -21,6 +28,7 @@ type InboxItem = {
   status: string;
   sent_at: string | null;
   created_at: string;
+  attachments: Attachment[] | null;
 };
 
 type Filter = "all" | "pending" | "sent" | "dismissed";
@@ -67,6 +75,7 @@ export default function InboxPage() {
   const [editing, setEditing] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
+  const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
 
   const fetchItems = useCallback(async () => {
     setLoading(true);
@@ -78,6 +87,33 @@ export default function InboxPage() {
   useEffect(() => {
     fetchItems();
   }, [fetchItems]);
+
+  // Pre-fetch signed URLs when selected item has attachments
+  useEffect(() => {
+    if (!selected?.attachments?.length) return;
+    const missing = selected.attachments.filter((a) => !signedUrls[a.storage_path]);
+    if (!missing.length) return;
+
+    Promise.all(
+      missing.map(async (a) => {
+        try {
+          const res = await fetch(`/api/admin/inbox/attachment?path=${encodeURIComponent(a.storage_path)}`);
+          if (!res.ok) return null;
+          const { url } = await res.json();
+          return { path: a.storage_path, url };
+        } catch {
+          return null;
+        }
+      })
+    ).then((results) => {
+      const next: Record<string, string> = {};
+      for (const r of results) {
+        if (r) next[r.path] = r.url;
+      }
+      if (Object.keys(next).length) setSignedUrls((prev) => ({ ...prev, ...next }));
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected?.id]);
 
   function selectItem(item: InboxItem) {
     setSelected(item);
@@ -285,6 +321,54 @@ export default function InboxPage() {
                 </pre>
                 <p className="text-xs text-t-text-muted mt-1">ID: {selected.id}</p>
               </div>
+
+              {/* Attachments */}
+              {selected.attachments && selected.attachments.length > 0 && (
+                <div className="p-4 border-b border-t-border">
+                  <h3 className="text-xs font-medium text-t-text-muted uppercase mb-2">
+                    Attachments ({selected.attachments.length})
+                  </h3>
+                  <div className="space-y-3">
+                    {selected.attachments.map((att, i) => {
+                      const url = signedUrls[att.storage_path];
+                      return (
+                        <div key={i}>
+                          {att.content_type.startsWith("image/") ? (
+                            <div>
+                              {url ? (
+                                <img
+                                  src={url}
+                                  alt={att.filename}
+                                  className="max-w-full max-h-64 rounded-[var(--t-radius-sm)] border border-t-border"
+                                />
+                              ) : (
+                                <div className="h-16 bg-t-bg rounded-[var(--t-radius-sm)] flex items-center justify-center text-xs text-t-text-muted">
+                                  Loading…
+                                </div>
+                              )}
+                              <p className="text-xs text-t-text-muted mt-1">
+                                {att.filename} ({(att.size_bytes / 1024).toFixed(0)} KB)
+                              </p>
+                            </div>
+                          ) : (
+                            <a
+                              href={url || "#"}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={`flex items-center gap-2 text-sm hover:underline ${url ? "text-t-accent" : "text-t-text-muted pointer-events-none"}`}
+                            >
+                              📎 {att.filename}
+                              <span className="text-xs text-t-text-muted">
+                                ({(att.size_bytes / 1024).toFixed(0)} KB)
+                              </span>
+                            </a>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Draft reply */}
               <div className="p-4 border-b border-t-border">
