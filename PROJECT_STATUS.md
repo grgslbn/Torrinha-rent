@@ -2,7 +2,7 @@
 
 <!-- STATUS:START -->
 ## Live status (auto-updated on every push)
-**Last updated:** 2026-05-09 07:38 UTC
+**Last updated:** 2026-06-08 10:10 UTC
 
 | Metric | Value |
 |---|---|
@@ -10,15 +10,15 @@
 | Upcoming tenants | 0 |
 | Inactive tenants | 2 |
 | Total spots | 17 |
-| 2026-05 paid | 8 |
-| 2026-05 pending | 5 |
-| 2026-05 overdue | 0 |
-| Waitlist (waiting) | 27 |
-| Unmatched transactions | 4 |
+| 2026-06 paid | 8 |
+| 2026-06 pending | 5 |
+| 2026-06 overdue | 0 |
+| Waitlist (waiting) | 28 |
+| Unmatched transactions | 19 |
 | Inbox pending | 0 |
-| Email log entries | 27 |
-| Tenant context entries | 39 |
-| Last payment received | 2026-05-08 |
+| Email log entries | 57 |
+| Tenant context entries | 42 |
+| Last payment received | 2026-06-03 |
 <!-- STATUS:END -->
 
 ---
@@ -44,18 +44,18 @@
 | torrinha_tenants | Tenant records (active, upcoming, inactive) | 15 |
 | torrinha_spots | Parking spots (17 total) | 17 |
 | torrinha_spot_assignments | Spot ↔ tenant assignments with date ranges | 17 |
-| torrinha_payments | Monthly payment tracking | 282 |
+| torrinha_payments | Monthly payment tracking | 295 |
 | torrinha_remotes | Remote controls + deposits | 0 |
-| torrinha_waitlist | Public waitlist signups | 27 |
-| torrinha_unmatched_transactions | Bank transactions pending review | 4 |
-| torrinha_inbox | Inbound emails + Claude draft replies | 6 |
+| torrinha_waitlist | Public waitlist signups | 28 |
+| torrinha_unmatched_transactions | Bank transactions pending review | 22 |
+| torrinha_inbox | Inbound emails + Claude draft replies | 8 |
 | torrinha_email_templates | Editable email templates (PT/EN) | 8 |
-| torrinha_email_log | All email communications (inbound + outbound) | 27 |
+| torrinha_email_log | All email communications (inbound + outbound) | 57 |
 | torrinha_tenant_contacts | Additional contacts per tenant | 0 |
-| torrinha_tenant_context | Rich context per tenant (relationship notes, pasted emails, agreements) | 39 |
+| torrinha_tenant_context | Rich context per tenant (relationship notes, pasted emails, agreements) | 42 |
 | torrinha_settings | System settings (key-value store) | 7 |
 | torrinha_gc_tokens | GoCardless API token storage | 0 |
-| torrinha_transaction_log | Full bank transaction log for audit | 19 |
+| torrinha_transaction_log | Full bank transaction log for audit | 50 |
 
 ---
 
