@@ -44,6 +44,14 @@ function today() {
   return new Date().toISOString().split("T")[0];
 }
 
+function addMonthStr(month: string, n: number): string {
+  const [y, m] = month.split("-").map(Number);
+  const date = new Date(y, m - 1 + n, 1);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+const AUTO_SPLIT_REQUIRES_IBAN = true;
+
 // --- Middleware: cron secret check ---
 
 function requireCronSecret(
@@ -87,10 +95,26 @@ type EnrichedPayment = {
 
 type MatchOutcome =
   | { matched: true; payment: EnrichedPayment; method: string }
+  | { matched: true; multiMonth: { tenant_id: string; perMonthRent: number; months: number; method: string; anchorPayment: EnrichedPayment } }
   | { matched: false; aiSuggestion?: { tenantName: string; paymentId: string; reason: string } };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DbClient = any;
+
+function detectMultiMonthMultiple(amount: number, perMonthRent: number): number | null {
+  if (!perMonthRent || perMonthRent <= 0) return null;
+  const n = Math.round(amount / perMonthRent);
+  if (n < 2 || n > 12) return null;
+  if (Math.abs(amount - n * perMonthRent) > 2) return null;
+  return n;
+}
+
+function tenantHasUniformRent(enriched: EnrichedPayment[], tenantId: string): boolean {
+  const amounts = new Set(
+    enriched.filter((p) => p.tenant_id === tenantId).map((p) => p.amount_eur)
+  );
+  return amounts.size === 1;
+}
 
 async function aiMatch(
   amount: number,
@@ -228,6 +252,25 @@ async function findMatch(
       .maybeSingle();
 
     if (insight) {
+      const tenantRows = enriched.filter((p) => p.tenant_id === insight.tenant_id);
+      const anchor = tenantRows[0];
+
+      if (anchor && tenantHasUniformRent(enriched, insight.tenant_id)) {
+        const n = detectMultiMonthMultiple(amount, anchor.amount_eur);
+        if (n) {
+          return {
+            matched: true,
+            multiMonth: {
+              tenant_id: insight.tenant_id,
+              perMonthRent: anchor.amount_eur,
+              months: n,
+              method: "iban_multi_month",
+              anchorPayment: anchor,
+            },
+          };
+        }
+      }
+
       const payment = enriched.find(
         (p) => p.tenant_id === insight.tenant_id && Math.abs(p.amount_eur - amount) <= 2
       );
@@ -368,6 +411,92 @@ async function learnFromMatch(
       } catch { /* ignore */ }
     }
   }
+}
+
+// ============================================================
+// Multi-month payment splitting
+// ============================================================
+
+async function applyMultiMonthPayment(
+  db: DbClient,
+  mm: { tenant_id: string; perMonthRent: number; months: number; method: string; anchorPayment: EnrichedPayment },
+  executionDate: string,
+  transactionId: string | null,
+  enriched: EnrichedPayment[]
+): Promise<{ coveredMonths: string[]; createdMonths: string[]; droppedCount: number }> {
+  // Earliest unpaid month for this tenant (fall back to current month if none)
+  const { data: unpaidRows } = await db
+    .from("torrinha_payments")
+    .select("month")
+    .eq("tenant_id", mm.tenant_id)
+    .in("status", ["pending", "overdue"])
+    .order("month", { ascending: true });
+
+  const startMonth = (unpaidRows && unpaidRows.length > 0)
+    ? (unpaidRows[0] as { month: string }).month
+    : currentMonthStr();
+
+  // Build N consecutive months
+  const targetMonths: string[] = [];
+  for (let i = 0; i < mm.months; i++) {
+    targetMonths.push(addMonthStr(startMonth, i));
+  }
+
+  // Filter by tenure — drop months outside the tenant's spot assignment
+  const { data: assignments } = await db
+    .from("torrinha_spot_assignments")
+    .select("start_date, end_date")
+    .eq("tenant_id", mm.tenant_id);
+
+  const keptMonths: string[] = [];
+  let droppedCount = 0;
+  for (const month of targetMonths) {
+    const [y, mo] = month.split("-").map(Number);
+    const firstDay = `${month}-01`;
+    const lastDay = new Date(y, mo, 0).toISOString().split("T")[0];
+    const isCovered = !assignments || assignments.length === 0 ||
+      (assignments as { start_date: string; end_date: string | null }[]).some((a) =>
+        a.start_date <= lastDay && (!a.end_date || a.end_date > firstDay)
+      );
+    if (isCovered) {
+      keptMonths.push(month);
+    } else {
+      droppedCount++;
+    }
+  }
+
+  // Pre-check which months already exist so we can report created vs updated
+  const { data: existingRows } = keptMonths.length
+    ? await db.from("torrinha_payments").select("month").eq("tenant_id", mm.tenant_id).in("month", keptMonths)
+    : { data: [] };
+  const existingMonthSet = new Set((existingRows ?? []).map((r: { month: string }) => r.month));
+
+  const coveredMonths: string[] = [];
+  const createdMonths: string[] = [];
+
+  for (const month of keptMonths) {
+    await db.from("torrinha_payments").upsert(
+      {
+        tenant_id: mm.tenant_id,
+        month,
+        status: "paid",
+        amount_eur: mm.perMonthRent,
+        paid_date: executionDate,
+        matched_by: "ponto_auto_split",
+        source_transaction_id: transactionId,
+      },
+      { onConflict: "tenant_id,month" }
+    );
+
+    coveredMonths.push(month);
+    if (!existingMonthSet.has(month)) createdMonths.push(month);
+
+    // Prevent re-matching these rows in the same batch
+    const idx = enriched.findIndex((p) => p.tenant_id === mm.tenant_id && p.month === month);
+    if (idx >= 0) enriched.splice(idx, 1);
+  }
+
+  return { coveredMonths, createdMonths, droppedCount };
 }
 
 // ============================================================
@@ -555,6 +684,64 @@ app.post("/webhooks/zapier", async (req, res) => {
       const outcome = await findMatch(amount, counterpart, counterpartReference, communication, enriched, db, executionDate);
 
       if (outcome.matched) {
+        if ("multiMonth" in outcome) {
+          const mm = outcome.multiMonth;
+          const { coveredMonths, createdMonths, droppedCount } = await applyMultiMonthPayment(
+            db, mm, executionDate, transactionId, enriched
+          );
+
+          try {
+            await db.from("torrinha_transaction_log").insert({
+              source: "zapier",
+              transaction_id: transactionId,
+              execution_date: executionDate,
+              amount_eur: amount,
+              counterpart,
+              communication,
+              match_status: "matched",
+              matched_tenant_id: mm.tenant_id,
+              matched_month: coveredMonths[0] ?? null,
+              notes: JSON.stringify({
+                raw_payload: txn,
+                match_method: mm.method,
+                months_covered: coveredMonths,
+                months_created: createdMonths,
+                months_dropped_beyond_tenure: droppedCount,
+                per_month_eur: mm.perMonthRent,
+                n: mm.months,
+                counterpart_reference: counterpartReference,
+              }),
+            });
+          } catch (e) {
+            console.error("[log] insert failed:", e);
+          }
+
+          const anchor = mm.anchorPayment;
+          const { data: mmContactRows } = await db
+            .from("torrinha_tenant_contacts")
+            .select("email")
+            .eq("tenant_id", mm.tenant_id)
+            .eq("receives_emails", true);
+          const mmExtraCc = (mmContactRows ?? []).map((c: { email: string }) => c.email).filter(Boolean) as string[];
+
+          await sendThankYouEmail(
+            { id: anchor.tenant_id, name: anchor.tenant_name, email: anchor.tenant_email, language: anchor.tenant_language },
+            { month: coveredMonths[0] ?? anchor.month, amount_eur: amount },
+            mmExtraCc,
+            coveredMonths
+          );
+
+          await db.from("torrinha_payments")
+            .update({ thankyou_sent_at: new Date().toISOString() })
+            .eq("tenant_id", mm.tenant_id)
+            .in("month", coveredMonths);
+
+          await learnFromMatch(mm.tenant_id, counterpart, counterpartReference, mm.method, db, executionDate, coveredMonths[0]);
+
+          matched++;
+          continue;
+        }
+
         const { payment, method } = outcome;
 
         // Remove from list to prevent double-matching in this batch

@@ -83,6 +83,20 @@ function formatMonth(month: string, lang: string): string {
   return `${months[parseInt(m, 10) - 1]} ${y}`;
 }
 
+function formatMonthRange(months: string[], lang: string): string {
+  if (months.length === 0) return "";
+  if (months.length === 1) return formatMonth(months[0], lang);
+  const first = months[0];
+  const last = months[months.length - 1];
+  const [fy, fm] = first.split("-").map(Number);
+  const [ly, lm] = last.split("-").map(Number);
+  const ptShort = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+  const enShort = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const shorts = lang === "pt" ? ptShort : enShort;
+  if (fy === ly) return `${shorts[fm - 1]} – ${shorts[lm - 1]} ${fy}`;
+  return `${shorts[fm - 1]} ${fy} – ${shorts[lm - 1]} ${ly}`;
+}
+
 function isDryRun(): boolean {
   return process.env.EMAIL_DRY_RUN === "true";
 }
@@ -268,10 +282,14 @@ function staticReminderBody(tenant: TenantInfo, amount: number, monthStr: string
 export async function sendThankYouEmail(
   tenant: TenantInfo,
   payment: { month: string; amount_eur: number },
-  extraCc?: string[]
+  extraCc?: string[],
+  coversMonths?: string[]
 ): Promise<{ success: boolean; error?: string }> {
   const isPt = tenant.language === "pt";
-  const monthStr = formatMonth(payment.month, tenant.language);
+  const isMultiMonth = coversMonths && coversMonths.length > 1;
+  const monthStr = isMultiMonth
+    ? formatMonthRange(coversMonths, tenant.language)
+    : formatMonth(payment.month, tenant.language);
 
   const subject = isPt
     ? `Torrinha — Pagamento recebido (${monthStr})`
@@ -280,24 +298,35 @@ export async function sendThankYouEmail(
   let body: string;
   let personalised = false;
 
-  try {
-    const context = await assembleTenantContext(tenant.id, payment.month);
-    body = await generatePersonalisedEmail("thank-you", context);
-    personalised = true;
-  } catch (err) {
-    console.error("[email] LLM personalisation failed, falling back to static template:", err);
-    const tpl = await getTemplate(isPt ? "payment_thankyou_pt" : "payment_thankyou_en");
-    const vars = { tenant_name: tenant.name, amount: String(payment.amount_eur), month: monthStr };
-    body = tpl
-      ? applyPlaceholders(tpl.body, vars)
-      : staticThankYouBody(tenant, payment.amount_eur, monthStr);
+  if (isMultiMonth) {
+    body = isPt
+      ? `Olá ${tenant.name},\n\nConfirmamos a receção do seu pagamento de €${payment.amount_eur} referente ao período ${monthStr}.\n\nObrigado!\nTorrinha Parking`
+      : `Hi ${tenant.name},\n\nWe confirm receipt of your payment of €${payment.amount_eur} covering ${monthStr}.\n\nThank you!\nTorrinha Parking`;
+  } else {
+    try {
+      const context = await assembleTenantContext(tenant.id, payment.month);
+      body = await generatePersonalisedEmail("thank-you", context);
+      personalised = true;
+    } catch (err) {
+      console.error("[email] LLM personalisation failed, falling back to static template:", err);
+      const tpl = await getTemplate(isPt ? "payment_thankyou_pt" : "payment_thankyou_en");
+      const vars = { tenant_name: tenant.name, amount: String(payment.amount_eur), month: monthStr };
+      body = tpl
+        ? applyPlaceholders(tpl.body, vars)
+        : staticThankYouBody(tenant, payment.amount_eur, monthStr);
+    }
   }
 
   return sendEmail(tenant.email, subject, body, {
     extraCc,
     tenant_id: tenant.id,
     template: "thank-you",
-    metadata: { month: payment.month, amount: payment.amount_eur, personalised },
+    metadata: {
+      month: payment.month,
+      amount: payment.amount_eur,
+      personalised,
+      ...(isMultiMonth ? { covers_months: coversMonths } : {}),
+    },
   });
 }
 
