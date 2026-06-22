@@ -1704,8 +1704,8 @@ async function sendBankHealthAlert(
 
   const bodies: Record<string, string> = {
     no_data: `No bank transactions have ever been received by the system.\n\nCheck:\n- Is the Zapier zap active?\n- Is Ponto connected to Crédito Agrícola?\n- Is the webhook URL correct?`,
-    warning: `The last bank transaction was synced ${daysSince} days ago (${lastSync?.toLocaleDateString()}).\n\nThis could mean:\n- Ponto's PSD2 consent has expired (re-link at myponto.com)\n- The Zapier zap is paused or erroring\n- No bank activity (unlikely for ${daysSince}+ days)\n\nCheck Zapier task history and Ponto connection status.`,
-    critical: `⚠️ It has been ${daysSince} days since the last bank sync (${lastSync?.toLocaleDateString()}).\n\nThe Ponto/Zapier connection is almost certainly broken. Payment matching is not working.\n\nActions needed:\n1. Log in to myponto.com — re-authorize Crédito Agrícola if consent expired\n2. Check Zapier — is the zap active? Any errors in task history?\n3. After fixing, replay recent Zapier runs to catch up\n\nThe system will continue sending payment reminders but cannot auto-match payments until this is resolved.`,
+    warning: `Ponto last synced with the bank ${daysSince} days ago (${lastSync?.toLocaleDateString()}).\n\nThe connection may be degraded. Possible causes:\n- Ponto's PSD2 consent is about to expire (re-link at myponto.com)\n- A temporary Ponto API issue\n\nCheck Ponto connection status at myponto.com.`,
+    critical: `⚠️ Ponto has not synced with the bank for ${daysSince} days (last sync: ${lastSync?.toLocaleDateString()}).\n\nThe connection is almost certainly broken. Payment matching is not working.\n\nActions needed:\n1. Log in to myponto.com — re-authorize Crédito Agrícola if consent expired\n2. After fixing, verify the sync resumes\n\nThe system will continue sending payment reminders but cannot auto-match payments until this is resolved.`,
   };
 
   const from = process.env.PARKING_EMAIL || process.env.EMAIL_FROM || "parking@mail.torrinha149.com";
@@ -1745,8 +1745,40 @@ async function sendBankHealthAlert(
 
 app.post("/cron/check-bank-health", requireCronSecret, async (_req, res) => {
   try {
-    const db = supabase();
+    // Primary signal: ask Ponto directly when it last polled the bank.
+    // This is independent of transaction volume — a quiet account still syncs.
+    let pontoSynchronizedAt: Date | null = null;
+    try {
+      const { synchronizedAt } = await fetchTransactions();
+      if (synchronizedAt) pontoSynchronizedAt = new Date(synchronizedAt);
+    } catch (pontoErr) {
+      console.warn("[check-bank-health] Could not reach Ponto API:", pontoErr);
+    }
 
+    const now = new Date();
+
+    if (pontoSynchronizedAt) {
+      const daysSince = Math.floor(
+        (now.getTime() - pontoSynchronizedAt.getTime()) / 86400000
+      );
+
+      if (daysSince >= 7) {
+        await sendBankHealthAlert("critical", daysSince, pontoSynchronizedAt);
+        return res.json({ ok: true, alert: "critical", days: daysSince, source: "ponto" });
+      }
+
+      if (daysSince >= 3) {
+        await sendBankHealthAlert("warning", daysSince, pontoSynchronizedAt);
+        return res.json({ ok: true, alert: "warning", days: daysSince, source: "ponto" });
+      }
+
+      console.log(`[check-bank-health] OK — Ponto last synced ${daysSince} day(s) ago`);
+      return res.json({ ok: true, alert: "none", days: daysSince, source: "ponto" });
+    }
+
+    // Ponto API unreachable — fall back to last Zapier transaction in DB.
+    // If there's no transaction at all, flag as no_data.
+    const db = supabase();
     const { data: latest } = await db
       .from("torrinha_transaction_log")
       .select("received_at")
@@ -1757,25 +1789,24 @@ app.post("/cron/check-bank-health", requireCronSecret, async (_req, res) => {
 
     if (!latest) {
       await sendBankHealthAlert("no_data");
-      return res.json({ ok: true, alert: "no_data" });
+      return res.json({ ok: true, alert: "no_data", source: "db_fallback" });
     }
 
     const lastSync = new Date(latest.received_at);
-    const now = new Date();
     const daysSince = Math.floor((now.getTime() - lastSync.getTime()) / 86400000);
 
     if (daysSince >= 7) {
       await sendBankHealthAlert("critical", daysSince, lastSync);
-      return res.json({ ok: true, alert: "critical", days: daysSince });
+      return res.json({ ok: true, alert: "critical", days: daysSince, source: "db_fallback" });
     }
 
     if (daysSince >= 3) {
       await sendBankHealthAlert("warning", daysSince, lastSync);
-      return res.json({ ok: true, alert: "warning", days: daysSince });
+      return res.json({ ok: true, alert: "warning", days: daysSince, source: "db_fallback" });
     }
 
-    console.log(`[check-bank-health] OK — last sync ${daysSince} day(s) ago`);
-    res.json({ ok: true, alert: "none", days: daysSince });
+    console.log(`[check-bank-health] OK (fallback) — last Zapier tx ${daysSince} day(s) ago`);
+    res.json({ ok: true, alert: "none", days: daysSince, source: "db_fallback" });
   } catch (err) {
     console.error("[check-bank-health] Error:", err);
     res.status(500).json({ error: "Failed to check bank health" });
